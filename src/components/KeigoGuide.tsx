@@ -70,9 +70,18 @@ export const KeigoGuide: React.FC<KeigoGuideProps> = ({ ttsSpeed }) => {
           </button>
 
           <div className="grid grid-cols-1 gap-2">
-            {STAFF_KEIGO_ESSENTIALS.slice(0, 4).map((option) => {
-              const item = option.id === currentQuizItem.id ? currentQuizItem : option;
-              return (
+            {(() => {
+              const others = STAFF_KEIGO_ESSENTIALS.filter(
+                (o) => o.id !== currentQuizItem.id
+              );
+              const rotatedOthers = [
+                others[quizIndex! % others.length],
+                others[(quizIndex! + 1) % others.length],
+                others[(quizIndex! + 2) % others.length],
+              ];
+              const options = [...rotatedOthers];
+              options.splice(quizIndex! % 4, 0, currentQuizItem);
+              return options.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => setSelectedAnswer(item.id)}
@@ -86,20 +95,8 @@ export const KeigoGuide: React.FC<KeigoGuideProps> = ({ ttsSpeed }) => {
                 >
                   {item.exampleKorean}
                 </button>
-              );
-            })}
-            {!STAFF_KEIGO_ESSENTIALS.slice(0, 4).some((o) => o.id === currentQuizItem.id) && (
-              <button
-                onClick={() => setSelectedAnswer(currentQuizItem.id)}
-                className={`text-left p-3.5 rounded-2xl text-xs font-bold border transition cursor-pointer ${
-                  selectedAnswer === currentQuizItem.id
-                    ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-extrabold'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                {currentQuizItem.exampleKorean}
-              </button>
-            )}
+              ));
+            })()}
           </div>
 
           {selectedAnswer && (

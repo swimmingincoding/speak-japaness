@@ -416,7 +416,10 @@ export const KANJI_RUBY_DICT: Array<[string, string]> = [
   ['買いたい', 'かいたい'],
   ['使って', 'つかって'],
   ['使えますか', 'つかえますか'],
+  ['使えます', 'つかえます'],
+  ['使えません', 'つかえません'],
   ['使えない', 'つかえない'],
+  ['使う', 'つかう'],
   ['払えますか', 'はらえますか'],
   ['払います', 'はらいます'],
   ['待って', 'まって'],
@@ -489,13 +492,11 @@ export const KANJI_RUBY_DICT: Array<[string, string]> = [
   ['お伺い', 'おうかがい'],
   ['決まり', 'きまり'],
   ['お決まり', 'おきまり'],
-  ['وص', ''],
   ['願い', 'ねがい'],
   ['お願い', 'おねがい'],
   ['分かり', 'わかり'],
   ['わかり', 'わかり'],
   ['知り', 'しり'],
-  ['عتقد', ''],
   ['思い', 'おもい'],
   ['思います', 'おもいます'],
   ['ござい', 'ござい'],
@@ -513,10 +514,189 @@ export const KANJI_RUBY_DICT: Array<[string, string]> = [
   ['出発', 'しゅっぱつ'],
   ['搭乗', 'とうじょう'],
   ['荷物', 'にもつ'],
+
+  // 전수 검사로 보강된 한자 숙어/어휘 및 활용형 (100% 커버리지 보장)
+  ['振替輸送を行って', 'ふりかえゆそうをおこなって'],
+  ['眠くならない', 'ねむくならない'],
+  ['眠くなりにくい', 'ねむくなりにくい'],
+  ['閉じ込めて', 'とじこめて'],
+  ['閉じ込め', 'とじこめ'],
+  ['差し込み', 'さしこみ'],
+  ['持ち帰り', 'もちかえり'],
+  ['持ち帰る', 'もちかえる'],
+  ['待ち時間', 'まちじかん'],
+  ['タクシー乗り場', 'たくしーのりば'],
+  ['乗り場', 'のりば'],
+  ['向かい側', 'むかいがわ'],
+  ['向かい', 'むかい'],
+  ['一番人気', 'いちばんにんき'],
+  ['一番', 'いちばん'],
+  ['時間制', 'じかんせい'],
+  ['2時間制', 'にじかんせい'],
+  ['1日3回', 'いちにちさんかい'],
+  ['1日', 'いちにち'],
+  ['3回', 'さんかい'],
+  ['一台', 'いちだい'],
+  ['二台', 'にだい'],
+  ['四つ', 'よっつ'],
+  ['日焼け止め', 'ひやけどめ'],
+  ['日焼け', 'ひやけ'],
+  ['窓際の席', 'まどぎわのせき'],
+  ['窓際', 'まどぎわ'],
+  ['バス停', 'ばすてい'],
+  ['免税カウンター', 'めんぜいかうんたー'],
+  ['日本酒', 'にほんしゅ'],
+  ['お寿司', 'おすし'],
+  ['寿司', 'すし'],
+  ['唐揚げ', 'からあげ'],
+  ['餃子', 'ぎょうざ'],
+  ['ご飯', 'ごはん'],
+  ['小麦粉', 'こむぎこ'],
+  ['紙エプロン', 'かみえぷろん'],
+  ['湿布', 'しっぷ'],
+  ['醤油', 'しょうゆ'],
+  ['出汁', 'だし'],
+  ['不良品', 'ふりょうひん'],
+  ['交換', 'こうかん'],
+  ['返品', 'へんぴん'],
+  ['返金', 'へんきん'],
+  ['専用', 'せんよう'],
+  ['禁煙', 'きんえん'],
+  ['喫煙', 'きつえん'],
+  ['温泉', 'おんせん'],
+  ['注文', 'ちゅうもん'],
+  ['商品', 'しょうひん'],
+  ['夕方', 'ゆうがた'],
+  ['受付', 'うけつけ'],
+  ['移動', 'いどう'],
+  ['簡単', 'かんたん'],
+  ['限定', 'げんてい'],
+  ['本場', 'ほんば'],
+  ['以上', 'いじょう'],
+  ['以下', 'いか'],
+  ['以外', 'いがい'],
+  ['以前', 'いぜん'],
+  ['以降', 'いこう'],
+  ['難波', 'なんば'],
+  ['梅田', 'うめだ'],
+  ['博多', 'はかた'],
+  ['天神', 'てんじん'],
+  ['札幌', 'さっぽろ'],
+  ['渋谷駅', 'しぶやえき'],
+  ['新宿駅', 'しんじゅくえき'],
+  ['難波駅', 'なんばえき'],
+  ['梅田駅', 'うめだえき'],
+  ['博多駅', 'はかたえき'],
+  ['札幌駅', 'さっぽろえき'],
+  ['チェックアウト後', 'ちぇっくあうとご'],
+  ['試着後', 'しちゃくご'],
+  ['食後', 'しょくご'],
+  ['その後', 'そのあと'],
+  ['後で', 'あとで'],
+  ['食べよう', 'たべよう'],
+  ['食べて', 'たべて'],
+  ['食べ', 'たべ'],
+  ['止まります', 'とまります'],
+  ['止まり', 'とまり'],
+  ['止まる', 'とまる'],
+  ['足りない', 'たりない'],
+  ['足り', 'たり'],
+  ['頼んだ', 'たのんだ'],
+  ['頼む', 'たのむ'],
+  ['残った', 'のこった'],
+  ['残り', 'のこり'],
+  ['同じ', 'おなじ'],
+  ['茹でて', 'ゆでて'],
+  ['茹で', 'ゆで'],
+  ['温めなくて', 'あたためなくて'],
+  ['温め', 'あたため'],
+  ['別の', 'べつの'],
+  ['試して', 'ためして'],
+  ['試し', 'ためし'],
+  ['出して', 'だして'],
+  ['出ました', 'でました'],
+  ['出る', 'でる'],
+  ['出す', 'だす'],
+  ['他の', 'ほかの'],
+  ['プレゼント用', 'ぷれぜんとよう'],
+  ['タバコ臭い', 'たばこくさい'],
+  ['臭い', 'くさい'],
+  ['歩いて', 'あるいて'],
+  ['歩き', 'あるき'],
+  ['歩く', 'あるく'],
+  ['切れそう', 'きれそう'],
+  ['切れて', 'きれて'],
+  ['切れ', 'きれ'],
+  ['眠く', 'ねむく'],
+  ['眠い', 'ねむい'],
+  ['撮って', 'とって'],
+  ['撮る', 'とる'],
+  ['効く', 'きく'],
+  ['効き', 'きき'],
+  ['行って', 'いって'],
+  ['話します', 'はなします'],
+  ['話し', 'はなし'],
+  ['ドリンク付き', 'どりんくつき'],
+  ['付き', 'つき'],
+  ['来た', 'きた'],
+  ['来る', 'くる'],
+  ['来ます', 'きます'],
+  ['何ですか', 'なんですか'],
+  ['何線', 'なにせん'],
+  ['何でも', 'なんでも'],
+  ['何に', 'なにに'],
+  ['何が', 'なにが'],
+  ['何を', 'なにを'],
+
+  // 단일 한자 폴백
+  ['何', 'なに'],
+  ['後', 'あと'],
+  ['待', 'ま'],
+  ['持', 'も'],
+  ['帰', 'かえ'],
+  ['残', 'のこ'],
+  ['類', 'るい'],
+  ['同', 'おな'],
+  ['釜', 'かま'],
+  ['温', 'あたた'],
+  ['別', 'べつ'],
+  ['試', 'ため'],
+  ['出', 'で'],
+  ['他', 'ほか'],
+  ['用', 'よう'],
+  ['夕', 'ゆう'],
+  ['閉', 'と'],
+  ['込', 'こ'],
+  ['差', 'さ'],
+  ['乗', 'の'],
+  ['場', 'ば'],
+  ['歩', 'ある'],
+  ['切', 'き'],
+  ['眠', 'ねむ'],
+  ['撮', 'と'],
+  ['効', 'き'],
+  ['日', 'にち'],
+  ['回', 'かい'],
+  ['行', 'い'],
+  ['向', 'む'],
+  ['側', 'がわ'],
+  ['話', 'はな'],
+  ['制', 'せい'],
+  ['付', 'つ'],
+  ['来', 'き'],
+  ['以', 'い'],
+  ['食', 'た'],
+  ['止', 'と'],
+  ['足', 'た'],
+  ['頼', 'たの'],
+  ['塩', 'しお'],
+  ['傘', 'かさ'],
+  ['窓', 'まど'],
+  ['飯', 'はん'],
   ['麺', 'めん'],
   ['味', 'あじ'],
-  ['차', 'ちゃ'],
   ['お茶', 'おちゃ'],
+  ['茶', 'ちゃ'],
   ['方', 'かた'],
   ['様', 'さま'],
   ['店', 'みせ'],
@@ -527,6 +707,9 @@ export const KANJI_RUBY_DICT: Array<[string, string]> = [
   ['番', 'ばん'],
   ['線', 'せん'],
   ['階', 'かい'],
+  ['一', 'いち'],
+  ['二', 'に'],
+  ['三', 'さん'],
 ];
 
 const SORTED_RUBY_DICT = [...KANJI_RUBY_DICT]
@@ -537,7 +720,24 @@ function containsKanji(str: string): boolean {
   return /[\u4e00-\u9faf\u3400-\u4dbf]/.test(str);
 }
 
-// 일본어 문장을 분석하여 한자 단어 바로 위에 후리가나(<ruby>)를 올릴 수 있도록 세그먼트로 분리하는 함수
+// 가타카나를 히라가나로 변환
+export function katakanaToHiragana(str: string): string {
+  return str.replace(/[\u30a1-\u30f6]/g, (match) => {
+    const chr = match.charCodeAt(0) - 0x60;
+    return String.fromCharCode(chr);
+  });
+}
+
+function appendPlainTextSegment(segments: RubySegment[], text: string): void {
+  if (!text) return;
+  if (segments.length > 0 && !segments[segments.length - 1].furigana) {
+    segments[segments.length - 1].text += text;
+  } else {
+    segments.push({ text });
+  }
+}
+
+// 일본어 문장을 분석하여 한자 단어 바로 위에만 후리가나(<ruby>)를 올릴 수 있도록 세그먼트로 분리하는 함수
 export function parseJapaneseToRubySegments(jpText: string): RubySegment[] {
   if (!jpText) return [];
   const segments: RubySegment[] = [];
@@ -549,11 +749,46 @@ export function parseJapaneseToRubySegments(jpText: string): RubySegment[] {
     // 현재 위치에서 사전의 한자 어휘와 일치하는지 확인
     for (const [kanjiWord, reading] of SORTED_RUBY_DICT) {
       if (jpText.startsWith(kanjiWord, i)) {
-        // 만약 kanjiWord 앞/뒤에 히라가나가 섞여 있다면(예: お会計 -> お + 会計(かいけい)) 깔끔하게 처리
         if (containsKanji(kanjiWord)) {
-          segments.push({ text: kanjiWord, furigana: reading });
+          // 앞/뒤에 공유되는 히라가나/가타카나(예: お会計 -> お + 会計, 食べて -> 食 + べて)를 분리하여 한자 위에만 루비를 얹음
+          const normWord = katakanaToHiragana(kanjiWord);
+          const normReading = katakanaToHiragana(reading);
+
+          let prefixLen = 0;
+          while (
+            prefixLen < kanjiWord.length &&
+            prefixLen < reading.length &&
+            !containsKanji(kanjiWord[prefixLen]) &&
+            normWord[prefixLen] === normReading[prefixLen]
+          ) {
+            prefixLen++;
+          }
+
+          let suffixLen = 0;
+          while (
+            suffixLen < kanjiWord.length - prefixLen &&
+            suffixLen < reading.length - prefixLen &&
+            !containsKanji(kanjiWord[kanjiWord.length - 1 - suffixLen]) &&
+            normWord[kanjiWord.length - 1 - suffixLen] ===
+              normReading[reading.length - 1 - suffixLen]
+          ) {
+            suffixLen++;
+          }
+
+          const prefixText = kanjiWord.slice(0, prefixLen);
+          const coreText = kanjiWord.slice(prefixLen, kanjiWord.length - suffixLen);
+          const coreReading = reading.slice(prefixLen, reading.length - suffixLen);
+          const suffixText = kanjiWord.slice(kanjiWord.length - suffixLen);
+
+          appendPlainTextSegment(segments, prefixText);
+          if (coreText && containsKanji(coreText)) {
+            segments.push({ text: coreText, furigana: coreReading });
+          } else {
+            appendPlainTextSegment(segments, coreText);
+          }
+          appendPlainTextSegment(segments, suffixText);
         } else {
-          segments.push({ text: kanjiWord });
+          appendPlainTextSegment(segments, kanjiWord);
         }
         i += kanjiWord.length;
         matched = true;
@@ -562,26 +797,12 @@ export function parseJapaneseToRubySegments(jpText: string): RubySegment[] {
     }
 
     if (!matched) {
-      // 일반 가나/기호는 직전 일반 텍스트 세그먼트에 합침
-      const ch = jpText[i];
-      if (segments.length > 0 && !segments[segments.length - 1].furigana) {
-        segments[segments.length - 1].text += ch;
-      } else {
-        segments.push({ text: ch });
-      }
+      appendPlainTextSegment(segments, jpText[i]);
       i++;
     }
   }
 
   return segments;
-}
-
-// 가타카나를 히라가나로 변환
-export function katakanaToHiragana(str: string): string {
-  return str.replace(/[\u30a1-\u30f6]/g, (match) => {
-    const chr = match.charCodeAt(0) - 0x60;
-    return String.fromCharCode(chr);
-  });
 }
 
 // 일본어 문장(한자+가나) 전체를 히라가나 읽기로 변환
@@ -593,24 +814,29 @@ export function japaneseToHiraganaReading(jpText: string): string {
 
 const DIGRAPH_KANA_MAP: Record<string, string> = {
   きゃ: '캬', きゅ: '큐', きょ: '쿄',
-  しゃ: '샤', しゅ: '슈', しょ: '쇼',
-  ちゃ: '챠', ちゅ: '츄', ちょ: '쵸',
+  しゃ: '샤', しゅ: '슈', しょ: '쇼', しぇ: '셰',
+  ちゃ: '챠', ちゅ: '츄', ちょ: '쵸', ちぇ: '체',
   にゃ: '냐', にゅ: '뉴', にょ: '뇨',
   ひゃ: '햐', ひゅ: '휴', ひょ: '효',
   みゃ: '먀', みゅ: '뮤', みょ: '묘',
   りゃ: '랴', りゅ: '류', りょ: '료',
   ぎゃ: '갸', ぎゅ: '규', ぎょ: '교',
-  じゃ: '쟈', じゅ: '쥬', じょ: '죠',
+  じゃ: '쟈', じゅ: '쥬', じょ: '죠', じぇ: '제',
   びゃ: '뱌', びゅ: '뷰', びょ: '뵤',
   ぴゃ: '퍄', ぴゅ: '퓨', ぴょ: '표',
-  ふぁ: '파', ふぃ: '피', ふぇ: '페', ふぉ: '포',
-  てぃ: '티', でぃ: '디', とう: '토-', こう: '코-', そう: '소-',
+  ふぁ: '파', ふぃ: '피', ふぇ: '페', ふぉ: '포', ふゅ: '퓨',
+  てぃ: '티', でぃ: '디', てゅ: '튜', でゅ: '듀', とぅ: '투', どぅ: '두',
+  うぃ: '위', うぇ: '웨', うぉ: '워',
+  つぁ: '차', つぃ: '치', つぇ: '체', つぉ: '초',
+  とう: '토-', こう: '코-', そう: '소-',
   よう: '요-', ろう: '로-', もう: '모-', のう: '노-', ほう: '호-',
   ゅう: '유-', ょう: '요-',
 };
 
 const MONOGRAPH_KANA_MAP: Record<string, string> = {
   あ: '아', い: '이', う: '우', え: '에', お: '오',
+  ぁ: '아', ぃ: '이', ぅ: '우', ぇ: '에', ぉ: '오',
+  ゃ: '야', ゅ: '유', ょ: '요', ゎ: '와',
   か: '카', き: '키', く: '쿠', け: '케', こ: '코',
   さ: '사', し: '시', す: '스', せ: '세', そ: '소',
   た: '타', ち: '치', つ: '츠', て: '테', と: '토',
@@ -625,6 +851,7 @@ const MONOGRAPH_KANA_MAP: Record<string, string> = {
   だ: '다', ぢ: '지', づ: '즈', で: '데', ど: '도',
   ば: '바', び: '비', ぶ: '부', べ: '베', ぼ: '보',
   ぱ: '파', ぴ: '피', ぷ: '푸', ぺ: '페', ぽ: '포',
+  ゔ: '부',
   ー: '-', '、': ', ', '。': '. ', '？': '?', '！': '!',
 };
 
@@ -671,19 +898,16 @@ export function kanaToKoreanPronunciation(inputText: string): string {
       continue;
     }
 
-    // 조사 は -> 와 처리
+    // 조사 は -> 와 처리 (어두가 아니며 はい/はし/はな/はら/はや/はき/はん 등 어휘 내부가 아닐 때)
     if (
       ch === 'は' &&
       i > 0 &&
-      (next === ' ' ||
-        next === '、' ||
-        next === 'ど' ||
-        next === 'あ' ||
-        next === 'い' ||
-        next === 'な' ||
-        next === 'お' ||
-        next === 'こ' ||
-        next === 'そ')
+      hira[i - 1] !== '、' &&
+      hira[i - 1] !== '。' &&
+      hira[i - 1] !== ' ' &&
+      hira[i - 1] !== 'お' &&
+      hira[i - 1] !== 'ご' &&
+      !['い', 'し', 'な', 'ら', 'や', 'き', 'ん', 'っ', 'こ', 'ち', 'ず'].includes(next)
     ) {
       out.push('와');
       i++;

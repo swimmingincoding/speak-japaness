@@ -51,9 +51,15 @@ export const N3StudyRoom: React.FC<N3StudyRoomProps> = ({
   const currentQuizWord = N3_VOCAB_LIST[quizTargetIndex % N3_VOCAB_LIST.length];
 
   const getQuizChoices = (target: N3WordItem) => {
-    const others = N3_VOCAB_LIST.filter((w) => w.id !== target.id).slice(0, 3);
-    const combined = [target, ...others];
-    return combined.sort((a, b) => a.id.localeCompare(b.id));
+    const others = N3_VOCAB_LIST.filter((w) => w.id !== target.id);
+    const rotated = [
+      others[(quizTargetIndex * 2) % others.length],
+      others[(quizTargetIndex * 2 + 3) % others.length],
+      others[(quizTargetIndex * 2 + 7) % others.length],
+    ];
+    const options = [...rotated];
+    options.splice((quizTargetIndex * 3 + 1) % 4, 0, target);
+    return options;
   };
 
   const handleSelectQuizOption = (choiceId: string) => {

@@ -32,16 +32,21 @@ import {
   CheckCircle2,
   Database,
   CornerDownLeft,
+  BookmarkPlus,
+  Check,
 } from 'lucide-react';
+import { SavedExpression } from '../types/conversation';
 
 interface OfflineTranslatorProps {
   ttsSpeed: number;
   showFurigana?: boolean;
+  onSaveExpression?: (expr: SavedExpression) => void;
 }
 
 export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   ttsSpeed,
   showFurigana = true,
+  onSaveExpression,
 }) => {
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true
@@ -53,8 +58,9 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     useState<TranslationOutput | null>(null);
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [isListening, setIsListening] = useState<boolean>(false);
-  const [packStats] = useState(() => getOfflinePackStats());
+  const [packStats, setPackStats] = useState(() => getOfflinePackStats());
   const [corpusCategory, setCorpusCategory] = useState<string>('식당');
+  const [justSaved, setJustSaved] = useState<boolean>(false);
 
   const [selectedEmergencyCat, setSelectedEmergencyCat] = useState<
     EmergencyCategory | 'all'
@@ -140,6 +146,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
 
             setTranslationResult(liveOut);
             saveNeuralCache(text, direction, liveOut);
+            setPackStats(getOfflinePackStats());
           }
         }
       } catch {
@@ -372,6 +379,42 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
               </span>
 
               <div className="flex items-center gap-1.5">
+                {onSaveExpression && (
+                  <button
+                    onClick={() => {
+                      onSaveExpression({
+                        id: `trans-${Date.now()}`,
+                        scenarioId: 'translator',
+                        scenarioTitle: '실시간 번역 북마크',
+                        speaker: 'customer',
+                        japanese: translationResult.japanese,
+                        furigana: translationResult.furigana,
+                        koreanPronunciation: translationResult.koreanPronunciation,
+                        koreanTranslation: translationResult.koreanMeaning,
+                        realLifeTip: translationResult.tip || '번역기에서 저장한 표현입니다.',
+                        savedAt: new Date().toISOString(),
+                      });
+                      setJustSaved(true);
+                      setTimeout(() => setJustSaved(false), 1800);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-xl border text-xs font-extrabold flex items-center gap-1 transition cursor-pointer ${
+                      justSaved
+                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                        : 'bg-white hover:bg-indigo-50 border-indigo-200 text-indigo-700'
+                    }`}
+                    title="내 단어장에 저장"
+                  >
+                    {justSaved ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" /> 저장됨
+                      </>
+                    ) : (
+                      <>
+                        <BookmarkPlus className="w-3.5 h-3.5" /> 단어장 저장
+                      </>
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={() =>
                     setBigScreenPhrase({
@@ -383,7 +426,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                   }
                   className="px-3 py-1.5 rounded-xl bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-extrabold flex items-center gap-1 shadow-2xs cursor-pointer"
                 >
-                  <Maximize2 className="w-3.5 h-3.5" /> 큰 화면으로 보여주기
+                  <Maximize2 className="w-3.5 h-3.5" /> 큰 화면
                 </button>
                 <button
                   onClick={() => speakJapanese(translationResult.japanese, ttsSpeed)}

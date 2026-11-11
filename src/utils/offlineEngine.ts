@@ -175,10 +175,17 @@ const NOUN_DICT: NounDictEntry[] = [
   { ko: ['피팅룸', '탈의실'], jp: '試着室', type: 'place' },
   { ko: ['면세 카운터', '면세점'], jp: '免税カウンター', type: 'place' },
   { ko: ['계산대', '카운터', '프론트'], jp: 'レジ（フロント）', type: 'place' },
-  { ko: ['시부야'], jp: '渋谷', type: 'place' },
-  { ko: ['신주쿠'], jp: '新宿', type: 'place' },
+  { ko: ['시부야역'], jp: '渋谷駅', type: 'place' },
+  { ko: ['신주쿠역'], jp: '新宿駅', type: 'place' },
   { ko: ['도쿄역'], jp: '東京駅', type: 'place' },
   { ko: ['교토역'], jp: '京都駅', type: 'place' },
+  { ko: ['난바역'], jp: '難波駅', type: 'place' },
+  { ko: ['우메다역'], jp: '梅田駅', type: 'place' },
+  { ko: ['하카타역'], jp: '博多駅', type: 'place' },
+  { ko: ['텐진역'], jp: '天神駅', type: 'place' },
+  { ko: ['삿포로역'], jp: '札幌駅', type: 'place' },
+  { ko: ['시부야'], jp: '渋谷', type: 'place' },
+  { ko: ['신주쿠'], jp: '新宿', type: 'place' },
   { ko: ['난바'], jp: '難波', type: 'place' },
   { ko: ['우메다'], jp: '梅田', type: 'place' },
   { ko: ['하카타'], jp: '博多', type: 'place' },
@@ -187,6 +194,21 @@ const NOUN_DICT: NounDictEntry[] = [
   { ko: ['여기', '이곳'], jp: 'ここ', type: 'place' },
   { ko: ['거기', '그곳'], jp: 'そこ', type: 'place' },
   { ko: ['저기', '저곳'], jp: 'あそこ', type: 'place' },
+
+  // 추상 / 행위 명사
+  { ko: ['면세', '택스프리'], jp: '免税（タックスフリー）', type: 'abstract' },
+  { ko: ['할인'], jp: '割引', type: 'abstract' },
+  { ko: ['환불', '반품'], jp: '返品（返金）', type: 'abstract' },
+  { ko: ['교환'], jp: '交換', type: 'abstract' },
+  { ko: ['포장', '테이크아웃'], jp: '持ち帰り（テイクアウト）', type: 'abstract' },
+  { ko: ['예약'], jp: '予約', type: 'abstract' },
+  { ko: ['체크인'], jp: 'チェックイン', type: 'abstract' },
+  { ko: ['체크아웃'], jp: 'チェックアウト', type: 'abstract' },
+  { ko: ['연장'], jp: '延長', type: 'abstract' },
+  { ko: ['계산', '결제'], jp: 'お会計', type: 'abstract' },
+  { ko: ['충전'], jp: '充電（チャージ）', type: 'abstract' },
+  { ko: ['흡연', '담배'], jp: 'タバコ（喫煙）', type: 'abstract' },
+  { ko: ['촬영'], jp: '写真撮影', type: 'abstract' },
 
   // 음식 / 음료 / 재료
   { ko: ['생맥주', '맥주'], jp: '生ビール', type: 'food' },
@@ -269,17 +291,21 @@ const NOUN_DICT: NounDictEntry[] = [
   { ko: ['우산'], jp: '傘', type: 'item' },
   { ko: ['열쇠', '카드키', '룸키'], jp: 'ルームキー', type: 'item' },
   { ko: ['표', '티켓', '승차권'], jp: '切符（チケット）', type: 'item' },
-  { ko: ['사진'], jp: '写真', type: 'item' },
-  { ko: ['지도'], jp: '地図', type: 'item' },
+  { ko: ['사진', '기념사진'], jp: '写真', type: 'item' },
+  { ko: ['지도', '구글맵'], jp: '地図', type: 'item' },
   { ko: ['사이즈', '치수'], jp: 'サイズ', type: 'item' },
-  { ko: ['새 상품', '재고'], jp: '新しい在庫', type: 'item' },
+  { ko: ['새 상품', '재고', '새 거'], jp: '新しい在庫', type: 'item' },
   { ko: ['감기약'], jp: '風邪薬', type: 'item' },
-  { ko: ['소화제', '위장약'], jp: '胃薬', type: 'item' },
-  { ko: ['두통약', '진통제'], jp: '頭痛薬', type: 'item' },
+  { ko: ['소화제', '위장약', '까스활명수'], jp: '胃薬', type: 'item' },
+  { ko: ['두통약', '진통제', '타이레놀'], jp: '頭痛薬', type: 'item' },
   { ko: ['해열제'], jp: '解熱剤', type: 'item' },
   { ko: ['지사제', '설사약'], jp: '下痢止め', type: 'item' },
-  { ko: ['반창고', '밴드'], jp: '絆創膏', type: 'item' },
+  { ko: ['반창고', '밴드', '대일밴드'], jp: '絆創膏', type: 'item' },
   { ko: ['안약', '인공눈물'], jp: '目薬', type: 'item' },
+  { ko: ['파스', '동전파스', '휴족시간'], jp: '湿布（サロンパス）', type: 'item' },
+  { ko: ['선크림', '자외선차단제'], jp: '日焼け止め', type: 'item' },
+  { ko: ['립밤'], jp: 'リップクリーム', type: 'item' },
+  { ko: ['마스크'], jp: 'マスク', type: 'item' },
   { ko: ['이거', '이것'], jp: 'これ', type: 'item' },
   { ko: ['그거', '그것'], jp: 'それ', type: 'item' },
   { ko: ['저거', '저것'], jp: 'あれ', type: 'item' },
@@ -302,18 +328,94 @@ const QUANTITY_RULES: Array<[RegExp, string]> = [
 // ============================================================================
 // 3. 다중 절(Multi-clause) 형태소/문형 합성 번역기
 // ============================================================================
+function extractQtyFromSegment(seg: string): string {
+  for (const [regex, jpVal] of QUANTITY_RULES) {
+    if (regex.test(seg)) {
+      return jpVal;
+    }
+  }
+  return '';
+}
+
+const FLATTENED_NOUN_KEYWORDS: Array<{ koWord: string; entry: NounDictEntry }> = [];
+for (const entry of NOUN_DICT) {
+  for (const koWord of entry.ko) {
+    FLATTENED_NOUN_KEYWORDS.push({ koWord, entry });
+  }
+}
+FLATTENED_NOUN_KEYWORDS.sort((a, b) => b.koWord.length - a.koWord.length);
+
+function findValidKeywordIndex(text: string, koWord: string): number {
+  let startPos = 0;
+  while (startPos < text.length) {
+    const idx = text.indexOf(koWord, startPos);
+    if (idx === -1) return -1;
+
+    // 1글자 단어(예: '게', '파', '차', '역', '방', '물')가 '할게요', '파출소', '시부야역' 내부에서 오매칭되는 현상 방지
+    if (koWord.length === 1) {
+      const prevChar = idx > 0 ? text[idx - 1] : ' ';
+      const nextChar = idx + 1 < text.length ? text[idx + 1] : ' ';
+      const validPrev = /[\s,./?!()]/.test(prevChar);
+      const validNext =
+        /[\s,./?!()]/.test(nextChar) ||
+        /^[가이을를은는도만랑와과에로좀더]/.test(text.slice(idx + 1));
+      if (!validPrev || !validNext) {
+        startPos = idx + 1;
+        continue;
+      }
+    }
+    return idx;
+  }
+  return -1;
+}
+
 function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boolean } {
   const c = clause.trim();
   if (!c) return { jp: '', matched: false };
 
-  // 1) 코퍼스 내 키워드 매칭 점수 계산
+  // 1) 절 내부의 명사들과 수량을 가장 긴 키워드 우선(Longest-Match-First)으로 추출
+  const foundNouns: Array<{ entry: NounDictEntry; matchedKo: string; index: number }> = [];
+  const usedEntries = new Set<NounDictEntry>();
+
+  let remainingText = c;
+  for (const { koWord, entry } of FLATTENED_NOUN_KEYWORDS) {
+    if (usedEntries.has(entry)) continue;
+    const idx = findValidKeywordIndex(remainingText, koWord);
+    if (idx !== -1) {
+      foundNouns.push({ entry, matchedKo: koWord, index: idx });
+      usedEntries.add(entry);
+      remainingText =
+        remainingText.slice(0, idx) +
+        ' '.repeat(koWord.length) +
+        remainingText.slice(idx + koWord.length);
+      if (foundNouns.length >= 3) break;
+    }
+  }
+
+  // 등장 순서대로 정렬
+  foundNouns.sort((a, b) => a.index - b.index);
+
+  // 2) 코퍼스 내 키워드 매칭 점수 계산 (단, 사용자가 입력한 핵심 음식/사물 명사가 코퍼스에 누락되어 있으면 제외)
   let bestCorpus: CorpusItem | null = null;
   let bestScore = 0;
+
+  const specificUserNouns = foundNouns.filter(
+    (n) => n.entry.type === 'food' || n.entry.type === 'item'
+  );
 
   for (const item of PREBUILT_CORPUS) {
     if (item.ko.replace(/[?？.!~\s]/g, '') === c.replace(/[?？.!~\s]/g, '')) {
       return { jp: item.jp, matched: true };
     }
+
+    // 사용자가 2개 이상의 구체적 음식/사물 명사를 말했는데 코퍼스 문장에 그 명사가 없다면 스킵 (예: "생맥주 두 잔이랑 가라아게 하나 주세요")
+    if (specificUserNouns.length >= 2) {
+      const allCovered = specificUserNouns.every((n) =>
+        n.entry.ko.some((syn) => item.ko.includes(syn))
+      );
+      if (!allCovered) continue;
+    }
+
     let hit = 0;
     for (const kw of item.koKeywords) {
       if (c.includes(kw)) hit++;
@@ -332,37 +434,50 @@ function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boo
     return { jp: bestCorpus.jp, matched: true };
   }
 
-  // 2) 절 내부의 명사들과 수량 추출
-  const foundNouns: NounDictEntry[] = [];
-  const sortedNouns = [...NOUN_DICT].sort(
-    (a, b) => b.ko[0].length - a.ko[0].length
-  );
-
-  let remainingText = c;
-  for (const entry of sortedNouns) {
-    for (const koWord of entry.ko) {
-      if (remainingText.includes(koWord)) {
-        foundNouns.push(entry);
-        remainingText = remainingText.replace(koWord, ' ');
-        break;
-      }
-    }
-    if (foundNouns.length >= 2) break;
+  // 특화 패턴: 안 매운 요리 추천
+  if ((c.includes('안 매운') || c.includes('맵지 않')) && c.includes('추천')) {
+    return { jp: '辛くない料理をおすすめしてください。', matched: true };
   }
 
-  let qtyJp = '';
-  for (const [regex, jpVal] of QUANTITY_RULES) {
-    if (regex.test(c)) {
-      qtyJp = jpVal;
-      break;
+  let qtyJp = extractQtyFromSegment(c);
+
+  // 다중 품목 개별 수량 조합 (예: "생맥주 두 잔이랑 가라아게 하나 주세요")
+  if (
+    foundNouns.length >= 2 &&
+    (c.includes('주세요') || c.includes('주실') || c.includes('부탁') || c.includes('주문')) &&
+    !c.includes('빼') &&
+    !c.includes('더 주')
+  ) {
+    const subParts = c.split(/(?:이랑|랑|하고|와|과|그리고|,)\s*/);
+    if (subParts.length >= 2) {
+      const itemPhrases: string[] = [];
+      for (const part of subParts) {
+        let partNounJp = '';
+        for (const { koWord, entry } of FLATTENED_NOUN_KEYWORDS) {
+          if (findValidKeywordIndex(part, koWord) !== -1) {
+            partNounJp = entry.jp;
+            break;
+          }
+        }
+        if (partNounJp) {
+          const partQty = extractQtyFromSegment(part);
+          itemPhrases.push(partQty ? `${partNounJp}を${partQty}` : partNounJp);
+        }
+      }
+      if (itemPhrases.length >= 2) {
+        return {
+          jp: `${itemPhrases.join('と、')}お願いします。`,
+          matched: true,
+        };
+      }
     }
   }
 
   const nounPhraseJp =
-    foundNouns.length === 2
-      ? `${foundNouns[0].jp}と${foundNouns[1].jp}`
+    foundNouns.length >= 2
+      ? foundNouns.map((n) => n.entry.jp).join('と')
       : foundNouns.length === 1
-      ? foundNouns[0].jp
+      ? foundNouns[0].entry.jp
       : '';
 
   // 3) 서술어/어미 의도 분석 (연결어미 ~는데/~해서/~하고 및 종결어미 35종)
@@ -383,13 +498,17 @@ function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boo
     if ((c.includes('없어서') || c.includes('안 돼서') || c.includes('부족해서'))) {
       return { jp: `${nounPhraseJp}がないので、`, matched: true };
     }
+    // 작동 불가 / 결제 불가 ("카드가 안 돼요")
+    if (c.includes('안 돼요') || c.includes('안 되네요') || c.includes('안 됩니다') || c.includes('작동이 안')) {
+      return { jp: `${nounPhraseJp}が使えません。`, matched: true };
+    }
     if (c.includes('배고파') || c.includes('목말라')) {
       return { jp: 'お腹が空いたので、', matched: true };
     }
 
     // 빼달라 / 넣지 말아달라
     if (c.includes('빼주') || c.includes('빼고') || c.includes('넣지 마') || c.includes('없이')) {
-      return { jp: `${nounPhraseJp}抜きでお願いします。`, matched: true };
+      return { jp: `${nounPhraseJp}は抜いてください。`, matched: true };
     }
     // 적게 / 조금만
     if (c.includes('적게') || c.includes('조금만') || c.includes('덜')) {
@@ -397,7 +516,11 @@ function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boo
     }
     // 많이 / 추가
     if (c.includes('많이') || c.includes('추가') || c.includes('더 주') || c.includes('리필')) {
-      return { jp: `${nounPhraseJp}をもう${qtyJp || '一つ'}追加でお願いします。`, matched: true };
+      return { jp: `${nounPhraseJp}をもう${qtyJp || '一つ'}お願いします。`, matched: true };
+    }
+    // 추천 요청
+    if (c.includes('추천')) {
+      return { jp: `おすすめの${nounPhraseJp}を教えてください。`, matched: true };
     }
     // 알레르기 / 못 먹음
     if (c.includes('알레르기') || c.includes('알러지')) {
@@ -435,7 +558,7 @@ function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boo
     }
     // 허가 / 가능 여부 (~해도 되나요, ~할 수 있나요, ~되나요)
     if (c.includes('봐도 되') || c.includes('해도 되') || c.includes('되나요') || c.includes('할 수 있') || c.includes('가능')) {
-      return { jp: `${nounPhraseJp}は可能でしょうか？（大丈夫ですか？）`, matched: true };
+      return { jp: `${nounPhraseJp}はできますか？（可能でしょうか？）`, matched: true };
     }
     // 존재 유무 (~있나요, ~있어요?)
     if (c.includes('있나요') || c.includes('있어요') || c.includes('있습니까') || c.includes('남아 있')) {
@@ -453,7 +576,11 @@ function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boo
     if (c.includes('맡길') || c.includes('맡아') || c.includes('보관')) {
       return { jp: `${nounPhraseJp}を預かってもらえますか？`, matched: true };
     }
-    // 주문 / 요청 (~주세요, ~부탁, ~할게요)
+    // 수단 (~으로 할게요 / ~으로 계산)
+    if (c.includes('으로 할게') || c.includes('로 할게')) {
+      return { jp: `${nounPhraseJp}でお願いします。`, matched: true };
+    }
+    // 주문 / 요청 (~주세요, ~주실, ~부탁, ~할게요)
     if (c.includes('주세요') || c.includes('주실') || c.includes('부탁') || c.includes('할게요') || c.includes('주문') || qtyJp) {
       return {
         jp: `${nounPhraseJp}を${qtyJp || ''}お願いします。`,
@@ -462,7 +589,7 @@ function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boo
     }
 
     // 명사 단독일 때 타입별 자연스러운 문장 생성
-    if (foundNouns[0].type === 'place') {
+    if (foundNouns[0].entry.type === 'place') {
       return { jp: `すみません、${nounPhraseJp}はどこにありますか？`, matched: true };
     }
     return { jp: `すみません、${nounPhraseJp}を${qtyJp || ''}お願いします。`, matched: true };
@@ -509,12 +636,21 @@ export function getOfflinePackStats(): OfflinePackStats {
   if (!localStorage.getItem(OFFLINE_PACK_STATUS_KEY)) {
     localStorage.setItem(OFFLINE_PACK_STATUS_KEY, installedTime);
   }
+  let cachedCount = 0;
+  try {
+    const raw = localStorage.getItem(NEURAL_CACHE_KEY);
+    if (raw) {
+      cachedCount = Object.keys(JSON.parse(raw)).length;
+    }
+  } catch {
+    // ignore
+  }
   return {
     isReady: true,
-    version: 'v3.2 Pro (Offline Pack)',
-    totalSentences: PREBUILT_CORPUS.length + 120,
+    version: 'v3.5 Pro (Offline Pack)',
+    totalSentences: PREBUILT_CORPUS.length + 120 + cachedCount,
     totalVocabulary: NOUN_DICT.length + 350,
-    totalGrammarPatterns: 48,
+    totalGrammarPatterns: 52,
     lastSyncedAt: installedTime,
   };
 }
@@ -563,7 +699,28 @@ export function executeOfflineTranslation(
   if (cached) return cached;
 
   if (direction === 'ko-to-jp') {
-    // 전체 문장 통째로 먼저 매칭 시도
+    // 두 문장 이상이 공백/접속사로 이어진 복합 입력인지 먼저 확인 (예: "지갑을 잃어버렸어요 파출소가 어디예요?", "카드가 안 돼요 현금으로 할게요")
+    const multiSentenceParts = clean
+      .split(/(?:\.\s+|\?\s+|!\s+|(?<=어요|아요|해요|돼요|되네요|네요|이에요|예요|습니다|입니다)\s+)/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (multiSentenceParts.length >= 2) {
+      const translatedParts = multiSentenceParts.map((cl) => translateSingleClauseKoToJp(cl));
+      if (translatedParts.every((r) => r.matched)) {
+        const combinedJp = translatedParts.map((r) => r.jp).join(' ');
+        return {
+          japanese: combinedJp,
+          furigana: japaneseToHiraganaReading(combinedJp),
+          koreanPronunciation: kanaToKoreanPronunciation(combinedJp),
+          koreanMeaning: clean,
+          engineType: 'offline-pack',
+          confidence: 96,
+        };
+      }
+    }
+
+    // 전체 문장 통째로 매칭 시도
     const wholeMatch = translateSingleClauseKoToJp(clean);
     if (wholeMatch.matched) {
       return {
@@ -578,7 +735,7 @@ export function executeOfflineTranslation(
 
     // 복합문 절(Clause) 분리: ", ", "그리고", "근데", "는데 ", "해서 " 등으로 쪼개서 각각 번역 후 결합
     const clauses = clean
-      .split(/(?:,\s*|\.\s+|그리고\s+|근데\s+|그런데\s+|(?<=는데)\s+|(?<=해서)\s+|(?<=아서)\s+|(?<=어서)\s+)/)
+      .split(/(?:,\s*|그리고\s+|근데\s+|그런데\s+|(?<=는데)\s+|(?<=해서)\s+|(?<=아서)\s+|(?<=어서)\s+)/)
       .map((s) => s.trim())
       .filter(Boolean);
 
@@ -596,7 +753,7 @@ export function executeOfflineTranslation(
           koreanPronunciation: kanaToKoreanPronunciation(combinedJp),
           koreanMeaning: clean,
           engineType: 'offline-pack',
-          confidence: 90,
+          confidence: 92,
         };
       }
     }
@@ -669,3 +826,4 @@ export function executeOfflineTranslation(
     };
   }
 }
+

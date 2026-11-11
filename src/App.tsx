@@ -15,6 +15,7 @@ import { OfflineTranslator } from './components/OfflineTranslator';
 import { N3StudyRoom } from './components/N3StudyRoom';
 import { SettingsModal } from './components/SettingsModal';
 import { CustomScenarioModal } from './components/CustomScenarioModal';
+import { stopSpeaking } from './utils/speech';
 import {
   Headphones,
   Bookmark,
@@ -185,6 +186,12 @@ export const App: React.FC = () => {
     );
   };
 
+  const handleSwitchTab = (tab: MainTab) => {
+    stopSpeaking();
+    setActiveTab(tab);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="min-h-screen bg-[#EEF2F6] text-slate-900 flex justify-center">
       {/* 모바일 앱 컨테이너 */}
@@ -193,7 +200,7 @@ export const App: React.FC = () => {
         {!selectedScenario && (
           <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-xl border-b border-slate-200/80 px-5 py-3.5 flex items-center justify-between">
             <div
-              onClick={() => setActiveTab('scenarios')}
+              onClick={() => handleSwitchTab('scenarios')}
               className="flex items-center gap-3 cursor-pointer"
             >
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-indigo-500/25 text-white font-black text-lg">
@@ -239,7 +246,10 @@ export const App: React.FC = () => {
                 completedMap[selectedScenario.id] || { customer: false, staff: false }
               }
               onMarkCompleted={handleMarkCompleted}
-              onBack={() => setSelectedScenario(null)}
+              onBack={() => {
+                stopSpeaking();
+                setSelectedScenario(null);
+              }}
             />
           ) : (
             <>
@@ -248,10 +258,12 @@ export const App: React.FC = () => {
                   scenarios={allScenarios}
                   completedMap={completedMap}
                   onSelectScenario={(scenario, role) => {
+                    stopSpeaking();
                     setSelectedInitialRole(role);
                     setSelectedScenario(scenario);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  onGoKeigoTab={() => setActiveTab('keigo')}
+                  onGoKeigoTab={() => handleSwitchTab('keigo')}
                   onOpenCustomModal={() => setIsCustomModalOpen(true)}
                   onDeleteCustomScenario={handleDeleteCustomScenario}
                 />
@@ -260,6 +272,7 @@ export const App: React.FC = () => {
                 <OfflineTranslator
                   ttsSpeed={displaySettings.ttsSpeed}
                   showFurigana={displaySettings.showFurigana}
+                  onSaveExpression={handleToggleSave}
                 />
               )}
               {activeTab === 'n3' && (
@@ -304,7 +317,7 @@ export const App: React.FC = () => {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => handleSwitchTab(item.id)}
                   className={`flex flex-col items-center justify-center py-1.5 rounded-2xl transition cursor-pointer ${
                     isActive
                       ? 'text-indigo-600 font-extrabold bg-indigo-50/80'
