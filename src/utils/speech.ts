@@ -1,5 +1,30 @@
 // Web Speech API 기반 일본어 음성 합성(TTS) 및 음성 인식(STT) 유틸리티
 
+let cachedJpVoice: SpeechSynthesisVoice | null = null;
+
+function loadJapaneseVoice(): void {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length > 0) {
+    cachedJpVoice =
+      voices.find((v) => v.lang === 'ja-JP' && v.name.includes('Google')) ||
+      voices.find((v) => v.lang === 'ja-JP' && v.name.includes('Kyoko')) ||
+      voices.find((v) => v.lang === 'ja-JP' && v.name.includes('Haruka')) ||
+      voices.find((v) => v.lang === 'ja-JP' && v.name.includes('Otoya')) ||
+      voices.find((v) => v.lang === 'ja-JP' && (v.name.includes('Natural') || v.name.includes('Online'))) ||
+      voices.find((v) => v.lang === 'ja-JP') ||
+      voices.find((v) => v.lang.toLowerCase().startsWith('ja')) ||
+      null;
+  }
+}
+
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  loadJapaneseVoice();
+  window.speechSynthesis.onvoiceschanged = () => {
+    loadJapaneseVoice();
+  };
+}
+
 export function speakJapanese(
   text: string,
   rate: number = 1.0,
@@ -19,15 +44,12 @@ export function speakJapanese(
   utterance.rate = rate;
   utterance.pitch = 1.02;
 
-  const voices = window.speechSynthesis.getVoices();
-  const jpVoice =
-    voices.find((v) => v.lang === 'ja-JP' && v.name.includes('Google')) ||
-    voices.find((v) => v.lang === 'ja-JP' && v.name.includes('Kyoko')) ||
-    voices.find((v) => v.lang === 'ja-JP' && v.name.includes('Haruka')) ||
-    voices.find((v) => v.lang.startsWith('ja'));
+  if (!cachedJpVoice) {
+    loadJapaneseVoice();
+  }
 
-  if (jpVoice) {
-    utterance.voice = jpVoice;
+  if (cachedJpVoice) {
+    utterance.voice = cachedJpVoice;
   }
 
   utterance.onend = () => {
