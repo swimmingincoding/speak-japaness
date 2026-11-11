@@ -14,6 +14,7 @@ import { SavedExpressions } from './components/SavedExpressions';
 import { OfflineTranslator } from './components/OfflineTranslator';
 import { N3StudyRoom } from './components/N3StudyRoom';
 import { SettingsModal } from './components/SettingsModal';
+import { CustomScenarioModal } from './components/CustomScenarioModal';
 import {
   MessageCircleHeart,
   Headphones,
@@ -30,6 +31,7 @@ const STORAGE_KEYS = {
   SAVED: 'tabitalk_saved_expressions_v1',
   COMPLETED: 'tabitalk_completed_roles_v1',
   N3_MASTERED: 'tabitalk_n3_mastered_v1',
+  CUSTOM_SCENARIOS: 'tabitalk_custom_scenarios_v1',
 };
 
 type MainTab = 'scenarios' | 'translator' | 'n3' | 'keigo' | 'saved';
@@ -39,6 +41,18 @@ export const App: React.FC = () => {
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [selectedInitialRole, setSelectedInitialRole] = useState<RoleType>('customer');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isCustomModalOpen, setIsCustomModalOpen] = useState<boolean>(false);
+
+  // 사용자 생성 커스텀 시나리오
+  const [customScenarios, setCustomScenarios] = useState<Scenario[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.CUSTOM_SCENARIOS);
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+    return [];
+  });
 
   // 표시 설정
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(() => {
@@ -127,8 +141,23 @@ export const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEYS.N3_MASTERED, JSON.stringify(n3MasteredList));
   }, [n3MasteredList]);
 
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_SCENARIOS, JSON.stringify(customScenarios));
+  }, [customScenarios]);
+
+  const allScenarios = [...customScenarios, ...SCENARIOS];
   const savedIds = new Set(savedExpressions.map((s) => s.id));
   const n3MasteredSet = new Set(n3MasteredList);
+
+  const handleCreateCustomScenario = (newScenario: Scenario) => {
+    setCustomScenarios((prev) => [newScenario, ...prev]);
+    setSelectedInitialRole('customer');
+    setSelectedScenario(newScenario);
+  };
+
+  const handleDeleteCustomScenario = (id: string) => {
+    setCustomScenarios((prev) => prev.filter((s) => s.id !== id));
+  };
 
   const handleToggleSave = (expr: SavedExpression) => {
     setSavedExpressions((prev) => {
@@ -224,17 +253,22 @@ export const App: React.FC = () => {
             <>
               {activeTab === 'scenarios' && (
                 <ScenarioList
-                  scenarios={SCENARIOS}
+                  scenarios={allScenarios}
                   completedMap={completedMap}
                   onSelectScenario={(scenario, role) => {
                     setSelectedInitialRole(role);
                     setSelectedScenario(scenario);
                   }}
                   onGoKeigoTab={() => setActiveTab('keigo')}
+                  onOpenCustomModal={() => setIsCustomModalOpen(true)}
+                  onDeleteCustomScenario={handleDeleteCustomScenario}
                 />
               )}
               {activeTab === 'translator' && (
-                <OfflineTranslator ttsSpeed={displaySettings.ttsSpeed} />
+                <OfflineTranslator
+                  ttsSpeed={displaySettings.ttsSpeed}
+                  showFurigana={displaySettings.showFurigana}
+                />
               )}
               {activeTab === 'n3' && (
                 <N3StudyRoom
@@ -332,6 +366,14 @@ export const App: React.FC = () => {
           onUpdateDisplay={setDisplaySettings}
           aiConfig={aiConfig}
           onUpdateAI={setAiConfig}
+        />
+
+        {/* 나만의 여행 상황 만들기 모달 */}
+        <CustomScenarioModal
+          isOpen={isCustomModalOpen}
+          onClose={() => setIsCustomModalOpen(false)}
+          aiConfig={aiConfig}
+          onCreateScenario={handleCreateCustomScenario}
         />
       </div>
     </div>

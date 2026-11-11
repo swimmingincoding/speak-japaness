@@ -5,9 +5,16 @@ import {
   EmergencyCategory,
   EmergencyPhrase,
   translateOfflineSmart,
+  saveTranslationToOfflineCache,
   OfflineTranslationResult,
 } from '../data/offlineTranslatorData';
+import {
+  japaneseToHiraganaReading,
+  kanaToKoreanPronunciation,
+  romajiToKoreanPronunciation,
+} from '../utils/japanesePhonetics';
 import { speakJapanese, startJapaneseSpeechRecognition } from '../utils/speech';
+import { FuriganaText } from './FuriganaText';
 import {
   Wifi,
   WifiOff,
@@ -24,9 +31,13 @@ import {
 
 interface OfflineTranslatorProps {
   ttsSpeed: number;
+  showFurigana?: boolean;
 }
 
-export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }) => {
+export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
+  ttsSpeed,
+  showFurigana = true,
+}) => {
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
@@ -63,11 +74,48 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }
     const text = (textOverride ?? inputText).trim();
     if (!text) return;
 
-    // 1. 먼저 오프라인 엔진으로 즉시 결과 도출 (지연 시간 0초)
+    // 1. 고밀도 오프라인 구문 합성 엔진 + 로컬 캐시로 0.01초 만에 즉시 번역
     const offlineRes = translateOfflineSmart(text, direction);
     setTranslationResult(offlineRes);
 
-    // 2. 온라인 모드이고 오프라인 정확 매칭이 아닌 경우 온라인 번역 보강 시도
+    // 2. 브라우저 내장 온디바이스 신경망 번역기(Chrome Built-in Translator API) 지원 시 오프라인에서도 신경망 번역 시도
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const winAny = window as any;
+    if (
+      effectiveOffline &&
+      offlineRes.engineType === 'offline-composed' &&
+      (winAny.Translator || winAny.translation?.createTranslator)
+    ) {
+      try {
+        const sl = direction === 'ko-to-jp' ? 'ko' : 'ja';
+        const tl = direction === 'ko-to-jp' ? 'ja' : 'ko';
+        const translator = winAny.Translator
+          ? await winAny.Translator.create({ sourceLanguage: sl, targetLanguage: tl })
+          : await winAny.translation.createTranslator({
+              sourceLanguage: sl,
+              targetLanguage: tl,
+            });
+        const onDeviceTranslated: string = await translator.translate(text);
+        if (onDeviceTranslated) {
+          const finalJp = direction === 'ko-to-jp' ? onDeviceTranslated : text;
+          const nextRes: OfflineTranslationResult = {
+            japanese: finalJp,
+            furigana: japaneseToHiraganaReading(finalJp),
+            koreanPronunciation: kanaToKoreanPronunciation(finalJp),
+            koreanMeaning: direction === 'ko-to-jp' ? text : onDeviceTranslated,
+            engineType: 'offline-cached',
+            tip: '기기 내장 온디바이스 AI 번역 모델로 오프라인 번역되었습니다.',
+          };
+          setTranslationResult(nextRes);
+          saveTranslationToOfflineCache(text, direction, nextRes);
+          return;
+        }
+      } catch {
+        // 온디바이스 모델 미설치 환경이면 이미 세팅된 오프라인 구문 합성 결과 유지
+      }
+    }
+
+    // 3. 온라인 상태일 때: 오프라인 정확 매칭(offline-exact)이 아닌 자유 문장은 온라인 신경망 번역 + 1:1 발음 매칭으로 업그레이드 후 오프라인 캐시에 저장
     if (!effectiveOffline && offlineRes.engineType !== 'offline-exact') {
       setIsTranslating(true);
       try {
@@ -79,25 +127,53 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
-          const translatedText =
+          const segments = Array.isArray(data?.[0]) ? data[0] : [];
+          const translatedText = segments
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            data?.[0]?.map((seg: any) => seg?.[0] || '').join('') || '';
+            .map((seg: any) => (typeof seg?.[0] === 'string' ? seg[0] : ''))
+            .join('')
+            .trim();
+
+          const romajiSegments = segments
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((seg: any) => {
+              if (!Array.isArray(seg)) return '';
+              return direction === 'ko-to-jp'
+                ? seg[2] || ''
+                : seg[3] || seg[2] || '';
+            })
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+
           if (translatedText) {
-            setTranslationResult({
-              japanese: direction === 'ko-to-jp' ? translatedText : text,
-              furigana: offlineRes.furigana,
-              koreanPronunciation:
-                offlineRes.engineType === 'offline-composed'
-                  ? offlineRes.koreanPronunciation
-                  : '음성 듣기(🔊)를 눌러 원어민 발음을 확인하세요',
+            const finalJapanese = direction === 'ko-to-jp' ? translatedText : text;
+            const matchedFurigana = japaneseToHiraganaReading(finalJapanese);
+
+            // 한자 사전 기반 가나 변환을 최우선 사용하여 조사/어미 발음 정확도 보장, 미등록 한자가 있을 때만 로마자 보조 활용
+            const hasUnresolvedKanji = /[\u4e00-\u9faf]/.test(matchedFurigana);
+            const matchedKoreanPron =
+              !hasUnresolvedKanji
+                ? kanaToKoreanPronunciation(finalJapanese)
+                : romajiSegments
+                ? romajiToKoreanPronunciation(romajiSegments)
+                : kanaToKoreanPronunciation(finalJapanese);
+
+            const onlineRes: OfflineTranslationResult = {
+              japanese: finalJapanese,
+              furigana: matchedFurigana,
+              koreanPronunciation: matchedKoreanPron,
               koreanMeaning: direction === 'ko-to-jp' ? text : translatedText,
               engineType: 'online-ai',
-              tip: '온라인 실시간 번역 + 오프라인 여행 사전이 결합된 결과입니다.',
-            });
+              tip: '한자 바로 위에 후리가나가 표시되며, 이 문장은 오프라인 캐시에 자동 저장되어 비행기 모드에서도 다시 쓸 수 있습니다!',
+            };
+
+            setTranslationResult(onlineRes);
+            saveTranslationToOfflineCache(text, direction, onlineRes);
           }
         }
       } catch {
-        // 네트워크 불안정 시 이미 세팅된 오프라인 결과 그대로 유지
+        // 네트워크 불안정 시 오프라인 결과 유지
       } finally {
         setIsTranslating(false);
       }
@@ -126,7 +202,6 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }
       return;
     }
 
-    // 한국어 음성 인식
     const SpeechRecognitionClass =
       (window as unknown as Record<string, unknown>).SpeechRecognition ||
       (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
@@ -163,11 +238,11 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }
           <div className="flex items-center gap-2">
             {effectiveOffline ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold">
-                <WifiOff className="w-3.5 h-3.5" /> 오프라인 엔진 작동 중 (데이터 0%)
+                <WifiOff className="w-3.5 h-3.5" /> 오프라인 구문합성 엔진 작동 중
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold">
-                <Wifi className="w-3.5 h-3.5" /> 온라인 + 오프라인 하이브리드
+                <Wifi className="w-3.5 h-3.5" /> 온라인 신경망 + 오프라인 하이브리드
               </span>
             )}
           </div>
@@ -182,10 +257,10 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }
 
         <div>
           <h2 className="text-lg font-extrabold text-white">
-            돌발상황 실시간 통번역 & SOS 소통보드
+            돌발상황 실시간 통번역 (한자 위 후리가나 지원)
           </h2>
           <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
-            일본 지하 매장이나 시골 기차역에서 <strong>로밍/eSIM 데이터가 끊겨도 100% 작동</strong>합니다. 급할 때는 아래 카드를 눌러 점원/역무원에게 큰 화면으로 바로 보여주세요!
+            모든 일본어 한자 바로 위에 <strong>읽는 법(후리가나)</strong>이 표시되어 읽기 연습까지 동시에 할 수 있습니다. <strong>200+ 어휘 구문 합성 엔진</strong>과 <strong>자동 오프라인 캐시</strong>로 비행기 모드에서도 자연스럽게 번역됩니다!
           </p>
         </div>
       </div>
@@ -244,7 +319,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }
             }}
             placeholder={
               direction === 'ko-to-jp'
-                ? '예: 전철에 가방을 두고 내렸어요 / 새우 빼주세요 / 화장실 어디예요'
+                ? '예: 생맥주 두 잔이랑 가라아게 주세요 / 얼음 빼주세요 / 체크아웃 후 짐 보관'
                 : '점원이 말한 일본어나 안내문 텍스트 입력...'
             }
             className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-rose-500"
@@ -258,15 +333,16 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }
           </button>
         </div>
 
-        {/* 빠른 키워드 칩 */}
+        {/* 빠른 테스트 키워드 칩 (비행기 모드에서도 완벽 번역 확인 가능) */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5">
           {[
-            '화장실 어디예요?',
-            '가방을 두고 내렸어요',
+            '생맥주 두 잔이랑 가라아게 주세요',
+            '얼음 빼고 주세요',
+            '예약 안 했는데 두 명 자리 있나요?',
+            '체크아웃 후에 짐 맡길 수 있나요?',
+            '시부야역까지 얼마나 걸리나요?',
             '새우 알레르기가 있어요',
-            '카드가 안 돼요',
-            '열이 나고 목이 아파요',
-            '앞접시 주세요',
+            '따로 계산할 수 있나요?',
           ].map((sample) => (
             <button
               key={sample}
@@ -282,16 +358,18 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }
           ))}
         </div>
 
-        {/* 번역 결과 표시 카드 */}
+        {/* 번역 결과 표시 카드 (한자 바로 위에 후리가나 루비 렌더링!) */}
         {translationResult && (
-          <div className="mt-2 rounded-2xl bg-slate-950 border-2 border-rose-500/40 p-4 space-y-2.5 animate-fadeIn">
+          <div className="mt-2 rounded-2xl bg-slate-950 border-2 border-rose-500/40 p-4 space-y-3 animate-fadeIn">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300">
                 {isTranslating
                   ? '번역 중...'
                   : translationResult.engineType === 'online-ai'
-                  ? '⚡ 실시간 온라인 + 사전 결합 번역'
-                  : '📦 오프라인 내장 엔진 즉시 번역'}
+                  ? '⚡ 실시간 신경망 번역 (오프라인 자동 캐시됨)'
+                  : translationResult.engineType === 'offline-cached'
+                  ? '💾 오프라인 캐시 복원 번역'
+                  : '📦 오프라인 구문 합성 엔진 번역'}
               </span>
 
               <div className="flex items-center gap-1.5">
@@ -306,28 +384,39 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }
                   }
                   className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1 cursor-pointer"
                 >
-                  <Maximize2 className="w-3.5 h-3.5" /> 점원에게 큰 화면으로 보여주기
+                  <Maximize2 className="w-3.5 h-3.5" /> 큰 화면으로 보여주기
                 </button>
                 <button
                   onClick={() => speakJapanese(translationResult.japanese, ttsSpeed)}
                   className="p-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white cursor-pointer"
+                  title="원어민 발음 듣기"
                 >
                   <Volume2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            <div className="text-lg font-extrabold text-white leading-snug">
-              {translationResult.japanese}
+            {/* 한자 위에 후리가나가 올라간 메인 일본어 문장 */}
+            <div className="pt-1">
+              <FuriganaText
+                text={translationResult.japanese}
+                showFurigana={showFurigana}
+                className="text-xl sm:text-2xl font-extrabold text-white"
+                rtClassName="text-[11px] font-bold text-rose-300"
+              />
             </div>
-            {translationResult.furigana && (
-              <div className="text-xs text-slate-400">{translationResult.furigana}</div>
-            )}
-            <div className="text-xs font-bold text-amber-300">
-              [{translationResult.koreanPronunciation}]
-            </div>
-            <div className="text-sm font-medium text-emerald-300">
-              {translationResult.koreanMeaning}
+
+            {/* 전체 히라가나 & 1:1 매칭 한국어 발음 */}
+            <div className="space-y-1 pt-1 border-t border-slate-900">
+              <div className="text-xs text-slate-400">
+                전체 히라가나: <span className="text-slate-200">{translationResult.furigana}</span>
+              </div>
+              <div className="text-xs font-bold text-amber-300">
+                한국어 발음: [{translationResult.koreanPronunciation}]
+              </div>
+              <div className="text-sm font-semibold text-emerald-300 pt-0.5">
+                의미: {translationResult.koreanMeaning}
+              </div>
             </div>
 
             {translationResult.tip && (
@@ -417,20 +506,34 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }
                 </div>
 
                 <div className="text-sm font-bold text-emerald-300">{item.korean}</div>
-                <div className="text-base font-extrabold text-white leading-snug">
-                  {item.japanese}
+
+                {/* 한자 위에 후리가나가 올라간 일본어 문장 */}
+                <div className="pt-1">
+                  <FuriganaText
+                    text={item.japanese}
+                    showFurigana={showFurigana}
+                    className="text-base sm:text-lg font-extrabold text-white"
+                    rtClassName="text-[10px] font-semibold text-rose-300"
+                  />
                 </div>
-                <div className="text-xs text-slate-400">{item.furigana}</div>
+
                 <div className="text-xs font-semibold text-amber-300">
                   [{item.koreanPronunciation}]
                 </div>
 
                 {/* 상대방 예상 답변 */}
                 <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 text-xs text-slate-300">
-                  <div>
-                    <span className="font-bold text-sky-300">👂 점원/역무원 예상 답변: </span>
-                    {item.expectedReplyJp}
-                    <div className="text-[11px] text-slate-400 mt-0.5">
+                  <div className="space-y-1">
+                    <div>
+                      <span className="font-bold text-sky-300">👂 점원/역무원 예상 답변: </span>
+                      <FuriganaText
+                        text={item.expectedReplyJp}
+                        showFurigana={showFurigana}
+                        className="font-semibold text-white"
+                        rtClassName="text-[9px] text-sky-300"
+                      />
+                    </div>
+                    <div className="text-[11px] text-slate-400">
                       → {item.expectedReplyKo}
                     </div>
                   </div>
@@ -467,11 +570,15 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({ ttsSpeed }
             <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">
               すみません、これを読んでいただけますか？
             </p>
-            <div className="text-3xl sm:text-4xl font-black text-white leading-normal break-keep">
-              {bigScreenPhrase.japanese}
+            <div className="py-2">
+              <FuriganaText
+                text={bigScreenPhrase.japanese}
+                showFurigana={true}
+                className="text-3xl sm:text-4xl font-black text-white break-keep"
+                rtClassName="text-xs font-bold text-rose-300"
+              />
             </div>
-            <div className="text-base text-slate-300">{bigScreenPhrase.furigana}</div>
-            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1.5">
               <div className="text-sm font-bold text-amber-300">
                 내 발음 가이드: [{bigScreenPhrase.koreanPronunciation}]
               </div>

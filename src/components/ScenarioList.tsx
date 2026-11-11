@@ -9,6 +9,8 @@ import {
   Sparkles,
   ArrowRightLeft,
   Headphones,
+  PlusCircle,
+  Trash2,
 } from 'lucide-react';
 
 interface ScenarioListProps {
@@ -16,6 +18,8 @@ interface ScenarioListProps {
   completedMap: Record<string, { customer: boolean; staff: boolean }>;
   onSelectScenario: (scenario: Scenario, role: RoleType) => void;
   onGoKeigoTab: () => void;
+  onOpenCustomModal: () => void;
+  onDeleteCustomScenario?: (id: string) => void;
 }
 
 export const ScenarioList: React.FC<ScenarioListProps> = ({
@@ -23,6 +27,8 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
   completedMap,
   onSelectScenario,
   onGoKeigoTab,
+  onOpenCustomModal,
+  onDeleteCustomScenario,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'all'>('all');
 
@@ -60,16 +66,26 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
           먼저 <strong>손님(A)</strong>이 되어 주문·요청을 해보고, 이어서 <strong>종업원(B)</strong>으로 역할을 바꿔 점원의 빠른 접객 일본어를 직접 말해보세요!
         </p>
 
-        <button
-          onClick={onGoKeigoTab}
-          className="w-full py-2.5 px-3.5 rounded-xl bg-slate-950/50 hover:bg-slate-950/70 border border-white/15 text-xs font-bold text-amber-200 flex items-center justify-between transition cursor-pointer"
-        >
-          <span className="flex items-center gap-1.5">
-            <Headphones className="w-4 h-4 text-amber-300" />
-            점원 말이 안 들릴 땐? [접객 일본어 핵심 6선] 먼저 듣기
-          </span>
-          <span>→</span>
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+          <button
+            onClick={onGoKeigoTab}
+            className="w-full py-2.5 px-3 rounded-xl bg-slate-950/50 hover:bg-slate-950/70 border border-white/15 text-xs font-bold text-amber-200 flex items-center justify-between transition cursor-pointer"
+          >
+            <span className="flex items-center gap-1.5 truncate">
+              <Headphones className="w-4 h-4 text-amber-300 shrink-0" />
+              <span className="truncate">접객 일본어 핵심 6선 듣기</span>
+            </span>
+            <span>→</span>
+          </button>
+
+          <button
+            onClick={onOpenCustomModal}
+            className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-rose-50 text-rose-700 text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-md transition cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4 shrink-0" />
+            <span>나만의 여행 상황 직접 만들기</span>
+          </button>
+        </div>
       </div>
 
       {/* 카테고리 필터 탭 */}
@@ -124,9 +140,20 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
                     {scenario.difficulty}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400">
-                  <Clock className="w-3.5 h-3.5" /> 약 {scenario.estimatedMinutes}분 ·{' '}
-                  {scenario.turns.length}턴
+                <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" /> 약 {scenario.estimatedMinutes}분 ·{' '}
+                    {scenario.turns.length}턴
+                  </span>
+                  {scenario.id.startsWith('custom-') && onDeleteCustomScenario && (
+                    <button
+                      onClick={() => onDeleteCustomScenario(scenario.id)}
+                      className="p-1 rounded-lg bg-slate-800 hover:bg-rose-600/30 text-slate-400 hover:text-rose-300 cursor-pointer"
+                      title="커스텀 시나리오 삭제"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
 

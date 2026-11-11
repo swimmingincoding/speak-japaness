@@ -145,9 +145,11 @@ export const N3StudyRoom: React.FC<N3StudyRoomProps> = ({
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               {(
                 [
-                  { id: 'all', label: '전체' },
-                  { id: 'noun', label: '명사/한자어' },
-                  { id: 'verb', label: '핵심 동사' },
+                  { id: 'all', label: '전체 (16)' },
+                  { id: 'noun', label: '명사·한자어' },
+                  { id: 'verb', label: '동사' },
+                  { id: 'adj', label: '형용사' },
+                  { id: 'expression', label: '실전부사·표현' },
                 ] as const
               ).map((tab) => (
                 <button
@@ -478,3 +480,4 @@ export const N3StudyRoom: React.FC<N3StudyRoomProps> = ({
     </div>
   );
 };
+

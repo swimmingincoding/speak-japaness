@@ -25,3 +25,4 @@
    git push -u origin main
    ```
 3. GitHub 저장소의 **Settings → Pages** 메뉴로 이동하여 **Build and deployment > Source**를 **`GitHub Actions`**로 선택하면 자동으로 빌드 및 배포가 완료됩니다!
+

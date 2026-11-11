@@ -15,7 +15,12 @@ import {
   calculateSimilarityScore,
   RecognitionHandle,
 } from '../utils/speech';
+import {
+  japaneseToHiraganaReading,
+  kanaToKoreanPronunciation,
+} from '../utils/japanesePhonetics';
 import { generatePartnerReply } from '../utils/aiService';
+import { FuriganaText } from './FuriganaText';
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -288,8 +293,8 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
       sender: 'user',
       role: userRole,
       japanese: content,
-      furigana: '',
-      koreanPronunciation: '',
+      furigana: japaneseToHiraganaReading(content),
+      koreanPronunciation: kanaToKoreanPronunciation(content),
       koreanTranslation: '',
     };
 
@@ -564,15 +569,14 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1.5 flex-1">
-                        <div className="text-base sm:text-lg font-bold text-white leading-snug">
-                          {turn.japanese}
+                        <div>
+                          <FuriganaText
+                            text={turn.japanese}
+                            showFurigana={displaySettings.showFurigana}
+                            className="text-base sm:text-lg font-bold text-white"
+                            rtClassName="text-[10px] font-semibold text-rose-300"
+                          />
                         </div>
-
-                        {displaySettings.showFurigana && (
-                          <div className="text-xs text-slate-300 leading-relaxed">
-                            {turn.furigana}
-                          </div>
-                        )}
 
                         {displaySettings.showKoreanPronunciation && (
                           <div className="text-xs font-semibold text-amber-300 leading-relaxed">
@@ -803,8 +807,13 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                   {/* 내가 읽어야 할 타겟 문장 하이라이트 */}
                   <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
                     <div className="text-xs text-slate-400">아래 문장을 소리 내어 말해보세요:</div>
-                    <div className="text-base font-bold text-white">
-                      {getActiveTargetPhrase(currentTurn).japanese}
+                    <div>
+                      <FuriganaText
+                        text={getActiveTargetPhrase(currentTurn).japanese}
+                        showFurigana={displaySettings.showFurigana}
+                        className="text-base font-bold text-white"
+                        rtClassName="text-[10px] font-semibold text-rose-300"
+                      />
                     </div>
                     <div className="text-xs font-bold text-amber-300">
                       [{getActiveTargetPhrase(currentTurn).koreanPronunciation}]
@@ -969,7 +978,14 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="text-base font-bold leading-snug">{msg.japanese}</div>
+                      <div>
+                        <FuriganaText
+                          text={msg.japanese}
+                          showFurigana={displaySettings.showFurigana}
+                          className="text-base font-bold text-white"
+                          rtClassName="text-[10px] font-semibold text-rose-300"
+                        />
+                      </div>
                       <button
                         onClick={() => speakJapanese(msg.japanese, displaySettings.ttsSpeed)}
                         className="p-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-rose-600 cursor-pointer shrink-0"
@@ -977,9 +993,6 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                         <Volume2 className="w-4 h-4" />
                       </button>
                     </div>
-                    {displaySettings.showFurigana && msg.furigana && (
-                      <div className="text-xs text-slate-400">{msg.furigana}</div>
-                    )}
                     {displaySettings.showKoreanPronunciation && msg.koreanPronunciation && (
                       <div className="text-xs font-semibold text-amber-300">
                         [{msg.koreanPronunciation}]
