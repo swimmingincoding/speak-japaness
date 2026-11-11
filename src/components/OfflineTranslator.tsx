@@ -9,6 +9,7 @@ import {
   executeOfflineTranslation,
   saveNeuralCache,
   getOfflinePackStats,
+  registerDynamicVocabPairs,
   PREBUILT_CORPUS,
   TranslationOutput,
 } from '../utils/offlineEngine';
@@ -115,6 +116,9 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
         if (aiRes && aiRes.japanese) {
           if (aiRes.kanjiReadings?.length) {
             registerDirectKanjiReadings(aiRes.kanjiReadings);
+          }
+          if (aiRes.vocabPairs?.length) {
+            registerDynamicVocabPairs(aiRes.vocabPairs);
           }
           const finalJp = aiRes.japanese.trim();
           const finalFuri = aiRes.furigana?.trim() || japaneseToHiraganaReading(finalJp);

@@ -392,13 +392,70 @@ function extractQtyFromSegment(seg: string): string {
   return '';
 }
 
+const DYNAMIC_VOCAB_STORAGE_KEY = 'tabitalk_dynamic_vocab_v1';
+
 const FLATTENED_NOUN_KEYWORDS: Array<{ koWord: string; entry: NounDictEntry }> = [];
-for (const entry of NOUN_DICT) {
-  for (const koWord of entry.ko) {
-    FLATTENED_NOUN_KEYWORDS.push({ koWord, entry });
+function rebuildFlattenedNounKeywords(): void {
+  FLATTENED_NOUN_KEYWORDS.length = 0;
+  for (const entry of NOUN_DICT) {
+    for (const koWord of entry.ko) {
+      if (koWord) FLATTENED_NOUN_KEYWORDS.push({ koWord, entry });
+    }
+  }
+  FLATTENED_NOUN_KEYWORDS.sort((a, b) => b.koWord.length - a.koWord.length);
+}
+
+// 앱 시작 시 Gemini로부터 학습해 둔 동적 어휘 사전 복원
+try {
+  if (typeof localStorage !== 'undefined') {
+    const raw = localStorage.getItem(DYNAMIC_VOCAB_STORAGE_KEY);
+    if (raw) {
+      const savedPairs: Array<{ ko: string; jp: string }> = JSON.parse(raw);
+      for (const p of savedPairs) {
+        if (p?.ko && p?.jp && !NOUN_DICT.some((e) => e.ko.includes(p.ko))) {
+          NOUN_DICT.push({ ko: [p.ko], jp: p.jp, type: 'item' });
+        }
+      }
+    }
+  }
+} catch {
+  // ignore
+}
+rebuildFlattenedNounKeywords();
+
+export function registerDynamicVocabPairs(
+  pairs: Array<{ ko: string; jp: string }>
+): void {
+  if (!Array.isArray(pairs) || pairs.length === 0) return;
+  let added = false;
+  for (const p of pairs) {
+    const ko = p?.ko?.trim();
+    const jp = p?.jp?.trim();
+    if (ko && jp && ko.length >= 2 && !NOUN_DICT.some((e) => e.ko.includes(ko))) {
+      NOUN_DICT.push({ ko: [ko], jp, type: 'item' });
+      added = true;
+    }
+  }
+  if (added) {
+    rebuildFlattenedNounKeywords();
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(DYNAMIC_VOCAB_STORAGE_KEY);
+        const existing: Array<{ ko: string; jp: string }> = raw ? JSON.parse(raw) : [];
+        for (const p of pairs) {
+          const ko = p?.ko?.trim();
+          const jp = p?.jp?.trim();
+          if (ko && jp && !existing.some((e) => e.ko === ko)) {
+            existing.push({ ko, jp });
+          }
+        }
+        localStorage.setItem(DYNAMIC_VOCAB_STORAGE_KEY, JSON.stringify(existing));
+      }
+    } catch {
+      // ignore
+    }
   }
 }
-FLATTENED_NOUN_KEYWORDS.sort((a, b) => b.koWord.length - a.koWord.length);
 
 function findValidKeywordIndex(text: string, koWord: string): number {
   let startPos = 0;
@@ -1140,9 +1197,18 @@ export function loadNeuralCache(
     const raw = localStorage.getItem(NEURAL_CACHE_KEY);
     if (!raw) return null;
     const map: Record<string, TranslationOutput> = JSON.parse(raw);
-    const found = map[`${direction}:${source.trim()}`];
-    if (found) {
-      return { ...found, engineType: 'offline-neural-cache' };
+    const exactKey = `${direction}:${source.trim()}`;
+    if (map[exactKey]) {
+      return { ...map[exactKey], engineType: 'offline-neural-cache' };
+    }
+    // 문장부호·공백 차이를 무시하는 정규화 퍼지 매칭 지원 (오프라인에서 물음표나 띄어쓰기가 달라도 캐시 적중!)
+    const normTarget = source.replace(/[?？.!~\s]/g, '');
+    for (const [k, val] of Object.entries(map)) {
+      if (!k.startsWith(`${direction}:`)) continue;
+      const savedSource = k.slice(direction.length + 1);
+      if (savedSource.replace(/[?？.!~\s]/g, '') === normTarget) {
+        return { ...val, engineType: 'offline-neural-cache' };
+      }
     }
   } catch {
     // ignore
