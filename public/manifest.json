@@ -1,0 +1,18 @@
+{
+  "name": "타비토크 (TabiTalk) - 실전 일본어 롤플레잉 회화 & 오프라인 번역",
+  "short_name": "TabiTalk",
+  "description": "손님과 종업원 역할을 바꿔가며 배우는 실전 일본 여행 회화 · 오프라인 번역 · JLPT N3 한자 모바일 앱",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#e11d48",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
