@@ -408,7 +408,7 @@ function simulateSmartPartnerReply(
         },
       ].slice(0, 3);
 
-      resolve({
+        resolve({
         japanese: nextPartnerTurn.japanese,
         furigana: nextPartnerTurn.furigana,
         koreanPronunciation: nextPartnerTurn.koreanPronunciation,
@@ -423,4 +423,271 @@ function simulateSmartPartnerReply(
     }, 550);
   });
 }
+
+// ============================================================================
+// Gemini 2.5 Flash 기반 일상·여행 회화 대량 사전번역(Pre-Warming) 배치 엔진
+// ============================================================================
+export interface BatchWarmItem {
+  ko: string;
+  jp: string;
+  furigana: string;
+  koreanPronunciation: string;
+  category: string;
+  koKeywords: string[];
+  tip: string;
+}
+
+export interface BatchWarmProgress {
+  completedBatches: number;
+  totalBatches: number;
+  totalSentencesGenerated: number;
+  totalKanjiLearned: number;
+  totalVocabLearned: number;
+  estimatedCostUsd: number;
+  currentTheme: string;
+}
+
+const PREWARM_THEMES: Array<{ category: string; title: string; sentences: string[] }> = [
+  {
+    category: '일상',
+    title: '일상 회화 · 인사 · 스몰토크 · 감정 표현',
+    sentences: [
+      '오늘 하루도 정말 수고 많으셨어요!',
+      '오랜만이에요! 그동안 어떻게 지내셨어요?',
+      '실례지만 나이가 어떻게 되시나요?',
+      '일본 드라마나 애니메이션 보는 걸 좋아해요',
+      '주말에는 보통 뭐 하면서 시간을 보내세요?',
+      '여기 분위기가 정말 아늑하고 좋네요',
+      '시간이 벌써 이렇게 됐네요, 슬슬 가봐야 할 것 같아요',
+      '길 찾기가 생각보다 어려워서 조금 헤맸어요',
+      '비행기 연착 때문에 예정보다 늦게 도착했어요',
+      '일본 편의점 음식은 다 맛있어서 매일 사 먹고 있어요',
+      '내일 날씨가 비가 온다고 해서 걱정이네요',
+      '혹시 한국에 가보신 적 있으세요?',
+      '다음에 기회 되면 또 만나서 이야기해요!',
+      '오늘 찍은 사진 나중에 보내주실 수 있나요?',
+      '몸이 조금 피곤해서 오늘은 숙소에서 일찍 쉬려고요',
+    ],
+  },
+  {
+    category: '식당',
+    title: '식당 · 라멘 · 스시 · 야키니쿠 · 이자카야 심화',
+    sentences: [
+      '초밥에 와사비를 넣지 말고 따로 주실 수 있나요?',
+      '라멘에 차슈랑 반숙 계란 추가해 주세요',
+      '꼬치구이 모둠은 소금구이랑 양념(타레) 중에 추천으로 주세요',
+      '오늘 들어온 가장 신선한 제철 생선이 뭔가요?',
+      '생맥주 한 잔 더 주시고 안주 메뉴판 좀 다시 보여주세요',
+      '술이 약해서 논알코올 칵테일이나 음료로 주문할게요',
+      '음식이 조금 짜서 그러는데 따뜻한 물이나 육수 좀 주실 수 있나요?',
+      '숯불이 약해진 것 같은데 숯 좀 더 넣어주세요',
+      '어린이 식기(포크와 작은 그릇) 하나 부탁드려요',
+      '라스트 오더 전에 추가로 더 시켜도 되나요?',
+      '현금 영수증이나 종이 영수증 발급해 주세요',
+      '테이블이 조금 끈적거리는데 한 번만 닦아주실 수 있나요?',
+      '예약한 김민수인데 7시 반으로 30분만 늦춰도 될까요?',
+      '코스 요리는 인원수대로 다 시켜야 하나요?',
+      '디저트는 식사 다 끝난 뒤에 달라고 말씀드릴게요',
+    ],
+  },
+  {
+    category: '쇼핑',
+    title: '쇼핑 · 의류 · 드럭스토어 · 가전 · 면세 심화',
+    sentences: [
+      '이 화장품은 지성 피부에 맞나요, 건성 피부에 맞나요?',
+      '유통기한이 언제까지인 상품인가요?',
+      '한국(220V)에서도 변압기 없이 바로 꽂아 쓸 수 있는 제품인가요?',
+      '면세 포장된 봉투는 출국할 때까지 뜯으면 안 되나요?',
+      '백화점 게스트 카드(외국인 5% 할인 쿠폰)는 어디서 받나요?',
+      '이 옷은 세탁기로 빨아도 되나요, 드라이클리닝해야 하나요?',
+      '선물할 거라서 가격표(택)는 떼어주실 수 있나요?',
+      '쇼핑백 큰 걸로 하나 더 구매할 수 있을까요?',
+      '영수증을 잃어버렸는데 결제한 카드로 교환이 되나요?',
+      '이 상품 다른 지점에는 재고가 있는지 확인해 주실 수 있나요?',
+      '오늘 사서 호텔로 바로 배송해 주는 서비스가 있나요?',
+      '할인 쿠폰 화면을 보여드리면 지금 바로 적용되나요?',
+      '면세 수속할 때 실물 카드가 꼭 있어야 하나요?',
+      '여권 명의랑 신용카드 명의가 같아야 면세가 되나요?',
+      '동전이 부족한데 천 엔짜리로 계산할게요',
+    ],
+  },
+  {
+    category: '호텔',
+    title: '호텔 · 료칸 · 온천 · 어메니티 · 컨시어지 심화',
+    sentences: [
+      '료칸 저녁 식사(가이세키)는 몇 시에 어디로 가면 되나요?',
+      '유카타 사이즈가 안 맞는데 한 치수 큰 걸로 바꿔주실 수 있나요?',
+      '전세탕(가족탕)을 예약하고 싶은데 지금 비어 있는 시간대가 있나요?',
+      '객실 내 금고가 안 열리는데 직원분이 와서 봐주실 수 있나요?',
+      '방에 전자레인지가 없는데 이 도시락을 데울 수 있는 곳이 있나요?',
+      '옆방 소음이 너무 심한데 주의를 주시거나 방을 옮길 수 있을까요?',
+      '내일 식당 예약을 대신 전화로 해주실 수 있나요?',
+      '우산 두 개만 빌릴 수 있을까요? 저녁에 돌아와서 반납할게요',
+      '체크아웃할 때 짐이 많은데 카트(벨보이)를 불러주실 수 있나요?',
+      '방에 휴대폰 충전기를 놓고 체크아웃했는데 찾아주실 수 있나요?',
+      '세탁기가 다 돌아갔는데 건조기는 어떻게 쓰나요?',
+      '방 키를 두 개로 발급해 주실 수 있나요?',
+      '오늘 밤에 돌아오는 시간이 늦어질 것 같은데 정문이 잠기나요?',
+      '미니바에 있는 생수는 무료인가요, 유료인가요?',
+      '택시 두 대를 지금 호텔 로비 앞으로 불러주세요',
+    ],
+  },
+  {
+    category: '교통',
+    title: '전철 · 신칸센 · 버스 · 공항 · 렌터카 심화',
+    sentences: [
+      '신칸센 특대 수하물 좌석으로 예약하고 싶습니다',
+      '지정석 기차를 놓쳤는데 다음 열차 자유석에 타도 되나요?',
+      '환승할 때 개찰구 밖으로 나갔다가 다시 타야 하나요?',
+      '원데이 패스(1일 승차권)는 어디서 살 수 있나요?',
+      '어린이 교통카드는 역무실에서 만들어야 하나요?',
+      '버스를 탈 때 뒷문으로 타서 번호표를 뽑는 게 맞나요?',
+      '내릴 때 요금함에 동전이 없으면 버스 안에서 환전이 되나요?',
+      '공항 리무진 버스 티켓을 지금 사고 싶은데 다음 출발이 몇 시인가요?',
+      '제1터미널에서 내릴 건데 가방에 태그 붙여주세요',
+      '렌터카 반납하기 전에 근처에 주유소가 어디 있나요?',
+      '만땅(가득)으로 일반 휘발유(레귤러) 넣어주세요',
+      '고속도로 통행료(ETC 카드) 정산 부탁드립니다',
+      '주차권에 할인 도장(처리) 받을 수 있나요?',
+      '비행기 탑승구가 변경되었는지 확인해 주세요',
+      '기내 수하물 무게 제한이 몇 킬로그램까지인가요?',
+    ],
+  },
+  {
+    category: '병원',
+    title: '병원 · 약국 · 응급 · 분실 · 트러블 완벽 대처',
+    sentences: [
+      '음식을 먹고 나서 온몸에 두드러기가 나고 가려워요',
+      '발목을 삐어서 걷기가 힘든데 냉찜질팩이나 압박붕대 있나요?',
+      '눈이 충혈되고 따가운데 인공눈물이나 안약 추천해 주세요',
+      '입안이 헐어서 구내염 패치나 연고를 찾고 있어요',
+      '모기에 물렸는데 바르는 약(무히) 어디에 있나요?',
+      '어린이가 먹을 수 있는 시럽 형태의 해열제가 있나요?',
+      '현재 복용 중인 약이 있는데 이 약이랑 같이 먹어도 괜찮나요?',
+      '구급차를 불러주실 수 있나요? 위급한 상황입니다',
+      '신용카드를 분실해서 결제 정지 신고를 해야 하는데 전화 좀 빌릴 수 있나요?',
+      '분실물 신고 접수증(유실물 증명서)을 발급해 주실 수 있나요?',
+      '택시에 쇼핑백을 두고 내렸는데 영수증에 적힌 택시 회사로 연락해 주실 수 있나요?',
+      '보조배터리를 떨어뜨렸는데 타는 냄새가 나요',
+      '여권 사본이랑 사진은 가지고 있는데 임시 여권을 발급받아야 해요',
+      '한국어 통역이 지원되는 병원 안내 번호를 알려주세요',
+      '도움을 주셔서 무사히 해결했습니다, 정말 은인이세요!',
+    ],
+  },
+];
+
+export async function batchWarmOfflinePackWithGemini(
+  aiConfig: AIConfig,
+  onProgress: (prog: BatchWarmProgress) => void,
+  onBatchComplete: (
+    items: BatchWarmItem[],
+    kanjiReadings: Array<{ kanji: string; reading: string }>,
+    vocabPairs: Array<{ ko: string; jp: string }>
+  ) => void
+): Promise<{ totalGenerated: number; totalCostUsd: number }> {
+  const key = aiConfig?.apiKey?.trim() || '';
+  if (!key) throw new Error('Gemini API Key가 설정되지 않았습니다.');
+
+  const model = aiConfig.model || 'gemini-2.5-flash';
+  const MAX_BUDGET_USD = 5.0;
+  let estimatedCostUsd = 0;
+  let totalSentencesGenerated = 0;
+  let totalKanjiLearned = 0;
+  let totalVocabLearned = 0;
+
+  for (let i = 0; i < PREWARM_THEMES.length; i++) {
+    const theme = PREWARM_THEMES[i];
+    if (estimatedCostUsd >= MAX_BUDGET_USD) break;
+
+    onProgress({
+      completedBatches: i,
+      totalBatches: PREWARM_THEMES.length,
+      totalSentencesGenerated,
+      totalKanjiLearned,
+      totalVocabLearned,
+      estimatedCostUsd,
+      currentTheme: theme.title,
+    });
+
+    const prompt = `당신은 일본 현지 여행·일상 회화 전문 통번역가입니다.
+아래 한국어 일상·여행 문장 ${theme.sentences.length}개를 실제 일본 원어민이 현장에서 가장 자연스럽게 쓰는 고품질 일본어로 일괄 번역하여 오프라인 언어팩 데이터를 구축하세요.
+
+번역할 한국어 문장 목록 (카테고리: ${theme.category}):
+${theme.sentences.map((s, idx) => `${idx + 1}. ${s}`).join('\n')}
+
+반드시 아래 순수 JSON 형식으로만 응답하세요:
+{
+  "items": [
+    {
+      "ko": "원래 한국어 문장",
+      "jp": "자연스러운 일본어 번역문",
+      "furigana": "문장 전체 히라가나 읽기 (한자 절대 포함 금지)",
+      "koreanPronunciation": "1:1 매칭 한국어 발음",
+      "category": "${theme.category}",
+      "koKeywords": ["핵심키워드1", "핵심키워드2", "핵심키워드3"],
+      "tip": "현지 활용 팁 1문장"
+    }
+  ],
+  "kanjiReadings": [
+    { "kanji": "등장한한자단어", "reading": "히라가나읽기" }
+  ],
+  "vocabPairs": [
+    { "ko": "한국어명사", "jp": "일본어명사" }
+  ]
+}`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
+      key
+    )}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.2,
+        },
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const cleaned = rawText.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+
+      const batchItems: BatchWarmItem[] = Array.isArray(parsed?.items) ? parsed.items : [];
+      const batchKanji: Array<{ kanji: string; reading: string }> = Array.isArray(
+        parsed?.kanjiReadings
+      )
+        ? parsed.kanjiReadings
+        : [];
+      const batchVocab: Array<{ ko: string; jp: string }> = Array.isArray(parsed?.vocabPairs)
+        ? parsed.vocabPairs
+        : [];
+
+      // gemini-2.5-flash 토큰 단가 기준 배치당 약 $0.0025 산정 (안전 버퍼 포함)
+      estimatedCostUsd += 0.003;
+      totalSentencesGenerated += batchItems.length;
+      totalKanjiLearned += batchKanji.length;
+      totalVocabLearned += batchVocab.length;
+
+      onBatchComplete(batchItems, batchKanji, batchVocab);
+    }
+  }
+
+  onProgress({
+    completedBatches: PREWARM_THEMES.length,
+    totalBatches: PREWARM_THEMES.length,
+    totalSentencesGenerated,
+    totalKanjiLearned,
+    totalVocabLearned,
+    estimatedCostUsd,
+    currentTheme: '완료',
+  });
+
+  return { totalGenerated: totalSentencesGenerated, totalCostUsd: estimatedCostUsd };
+}
+
 

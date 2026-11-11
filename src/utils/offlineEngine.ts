@@ -3,6 +3,7 @@ import {
   japaneseToHiraganaReading,
   kanaToKoreanPronunciation,
 } from './japanesePhonetics';
+import { GEMINI_PREBUILT_CORPUS } from '../data/geminiPrebuiltCorpus';
 
 export interface OfflinePackStats {
   isReady: boolean;
@@ -132,6 +133,86 @@ export const PREBUILT_CORPUS: CorpusItem[] = [
   { ko: '사진 한 장만 찍어주실 수 있나요?', koKeywords: ['사진', '찍어'], jp: 'すみません、写真を一枚撮ってもらえますか？', category: '일상' },
   { ko: '일본어를 잘 못해요. 천천히 말씀해 주세요.', koKeywords: ['일본어', '못해', '천천히'], jp: '日本語があまり話せません。ゆっくり話してください。', category: '일상' },
 ];
+
+// Gemini 2.5 Flash 사전 구축 대규모 코퍼스를 기본 내장 코퍼스에 병합 (첫 사용자도 API 키 없이 즉시 사용)
+for (const gemItem of GEMINI_PREBUILT_CORPUS) {
+  const normGem = gemItem.ko.replace(/[?？.!~\s]/g, '');
+  const existingIdx = PREBUILT_CORPUS.findIndex(
+    (c) => c.ko.replace(/[?？.!~\s]/g, '') === normGem
+  );
+  if (existingIdx !== -1) {
+    // Gemini 고품질 표현으로 덮어쓰기
+    PREBUILT_CORPUS[existingIdx] = gemItem;
+  } else {
+    PREBUILT_CORPUS.push(gemItem);
+  }
+}
+
+const DYNAMIC_CORPUS_STORAGE_KEY = 'tabitalk_dynamic_corpus_v1';
+try {
+  if (typeof localStorage !== 'undefined') {
+    const raw = localStorage.getItem(DYNAMIC_CORPUS_STORAGE_KEY);
+    if (raw) {
+      const savedCorpus: CorpusItem[] = JSON.parse(raw);
+      for (const item of savedCorpus) {
+        if (
+          item?.ko &&
+          item?.jp &&
+          !PREBUILT_CORPUS.some(
+            (c) =>
+              c.ko.replace(/[?？.!~\s]/g, '') === item.ko.replace(/[?？.!~\s]/g, '')
+          )
+        ) {
+          PREBUILT_CORPUS.push(item);
+        }
+      }
+    }
+  }
+} catch {
+  // ignore
+}
+
+export function registerDynamicCorpusItems(items: CorpusItem[]): number {
+  if (!Array.isArray(items) || items.length === 0) return 0;
+  let addedCount = 0;
+  for (const item of items) {
+    if (!item?.ko || !item?.jp) continue;
+    const norm = item.ko.replace(/[?？.!~\s]/g, '');
+    if (!PREBUILT_CORPUS.some((c) => c.ko.replace(/[?？.!~\s]/g, '') === norm)) {
+      PREBUILT_CORPUS.push({
+        ko: item.ko.trim(),
+        koKeywords:
+          Array.isArray(item.koKeywords) && item.koKeywords.length > 0
+            ? item.koKeywords
+            : item.ko
+                .replace(/[?？.!~,]/g, '')
+                .split(/\s+/)
+                .filter((w) => w.length >= 2)
+                .slice(0, 4),
+        jp: item.jp.trim(),
+        category: item.category || '일상',
+      });
+      addedCount++;
+    }
+  }
+  if (addedCount > 0) {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(DYNAMIC_CORPUS_STORAGE_KEY);
+        const existing: CorpusItem[] = raw ? JSON.parse(raw) : [];
+        for (const item of items) {
+          if (item?.ko && item?.jp && !existing.some((e) => e.ko === item.ko)) {
+            existing.push(item);
+          }
+        }
+        localStorage.setItem(DYNAMIC_CORPUS_STORAGE_KEY, JSON.stringify(existing));
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return addedCount;
+}
 
 // ============================================================================
 // 2. 형태소/어휘 사전 (명사, 동사 어간, 형용사 어간, 부사, 수량사, 접속사)
@@ -636,7 +717,14 @@ function translateSingleClauseKoToJp(clause: string): {
     c.includes('마세') ||
     c.includes('안 해');
 
+  const userDigits = (c.match(/\d+/g) || []).join(',');
+
   for (const item of PREBUILT_CORPUS) {
+    // 문장 길이 차이가 크거나(부가 절이 붙은 다른 문장) 숫자가 다르면 퍼지 매칭에서 제외하여 구문 합성기가 정확히 번역하도록 보장
+    if (Math.abs(item.ko.length - c.length) > 8) continue;
+    const itemDigits = (item.ko.match(/\d+/g) || []).join(',');
+    if (userDigits !== itemDigits) continue;
+
     // 사용자가 추출된 모든 명사를 코퍼스 문장도 포함하는지 확인 (부분 명사 매칭으로 인한 오역 원천 차단)
     if (foundNouns.length >= 1) {
       const allNounsCovered = foundNouns.every((n) =>
@@ -661,6 +749,7 @@ function translateSingleClauseKoToJp(clause: string): {
     }
     if (hit >= 2) {
       const ratio = hit / item.koKeywords.length;
+      if (ratio < 0.85) continue;
       const score = hit * 15 + ratio * 30;
       if (score > bestScore) {
         bestScore = score;
@@ -669,7 +758,7 @@ function translateSingleClauseKoToJp(clause: string): {
     }
   }
 
-  if (bestCorpus && bestScore >= 45) {
+  if (bestCorpus && bestScore >= 55) {
     return { jp: bestCorpus.jp, matched: true, exactCorpus: false };
   }
 
@@ -1186,6 +1275,29 @@ export function saveNeuralCache(
     localStorage.setItem(NEURAL_CACHE_KEY, JSON.stringify(map));
   } catch {
     // ignore
+  }
+}
+
+export function getNeuralCacheEntries(): Array<{
+  key: string;
+  direction: 'ko-to-jp' | 'jp-to-ko';
+  source: string;
+  output: TranslationOutput;
+}> {
+  try {
+    const raw = localStorage.getItem(NEURAL_CACHE_KEY);
+    if (!raw) return [];
+    const map: Record<string, TranslationOutput> = JSON.parse(raw);
+    return Object.entries(map)
+      .map(([k, output]) => {
+        const isKoToJp = k.startsWith('ko-to-jp:');
+        const direction: 'ko-to-jp' | 'jp-to-ko' = isKoToJp ? 'ko-to-jp' : 'jp-to-ko';
+        const source = k.slice(direction.length + 1);
+        return { key: k, direction, source, output };
+      })
+      .reverse();
+  } catch {
+    return [];
   }
 }
 

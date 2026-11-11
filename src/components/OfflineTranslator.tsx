@@ -9,7 +9,9 @@ import {
   executeOfflineTranslation,
   saveNeuralCache,
   getOfflinePackStats,
+  getNeuralCacheEntries,
   registerDynamicVocabPairs,
+  registerDynamicCorpusItems,
   PREBUILT_CORPUS,
   TranslationOutput,
 } from '../utils/offlineEngine';
@@ -21,7 +23,11 @@ import {
   registerDynamicKanjiReadings,
   registerDirectKanjiReadings,
 } from '../utils/japanesePhonetics';
-import { translateWithAI } from '../utils/aiService';
+import {
+  translateWithAI,
+  batchWarmOfflinePackWithGemini,
+  BatchWarmProgress,
+} from '../utils/aiService';
 import { speakJapanese, startJapaneseSpeechRecognition } from '../utils/speech';
 import { FuriganaText } from './FuriganaText';
 import {
@@ -69,8 +75,10 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [isListening, setIsListening] = useState<boolean>(false);
   const [packStats, setPackStats] = useState(() => getOfflinePackStats());
-  const [corpusCategory, setCorpusCategory] = useState<string>('식당');
+  const [corpusCategory, setCorpusCategory] = useState<string>('일상');
   const [justSaved, setJustSaved] = useState<boolean>(false);
+  const [isBatchWarming, setIsBatchWarming] = useState<boolean>(false);
+  const [batchProgress, setBatchProgress] = useState<BatchWarmProgress | null>(null);
 
   const [selectedEmergencyCat, setSelectedEmergencyCat] = useState<
     EmergencyCategory | 'all'
@@ -322,51 +330,171 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
       ? OFFLINE_EMERGENCY_PHRASES
       : OFFLINE_EMERGENCY_PHRASES.filter((p) => p.category === selectedEmergencyCat);
 
+  const cachedEntries = getNeuralCacheEntries();
   const filteredCorpus = PREBUILT_CORPUS.filter((c) => c.category === corpusCategory);
+
+  const handleRunGeminiBatchWarm = async () => {
+    if (!aiConfig?.apiKey?.trim() || isBatchWarming) return;
+    setIsBatchWarming(true);
+    try {
+      await batchWarmOfflinePackWithGemini(
+        aiConfig,
+        (prog) => setBatchProgress({ ...prog }),
+        (batchItems, batchKanji, batchVocab) => {
+          if (batchKanji.length) registerDirectKanjiReadings(batchKanji);
+          if (batchVocab.length) registerDynamicVocabPairs(batchVocab);
+          if (batchItems.length) {
+            registerDynamicCorpusItems(
+              batchItems.map((it) => ({
+                ko: it.ko,
+                koKeywords: it.koKeywords || [],
+                jp: it.jp,
+                category: it.category || '일상',
+              }))
+            );
+            for (const it of batchItems) {
+              saveNeuralCache(it.ko, 'ko-to-jp', {
+                japanese: it.jp,
+                furigana: it.furigana || japaneseToHiraganaReading(it.jp),
+                koreanPronunciation:
+                  it.koreanPronunciation || kanaToKoreanPronunciation(it.jp),
+                koreanMeaning: it.ko,
+                engineType: 'gemini-ai',
+                confidence: 100,
+                tip: it.tip || 'Gemini 2.5 Flash 대량 사전번역 언어팩 데이터입니다.',
+              });
+            }
+          }
+          setPackStats(getOfflinePackStats());
+        }
+      );
+      setCorpusCategory('AI캐시');
+    } catch {
+      // ignore
+    } finally {
+      setIsBatchWarming(false);
+    }
+  };
+
+  const handleExportOfflinePackJson = () => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      model: 'gemini-2.5-flash',
+      totalCorpusSentences: PREBUILT_CORPUS.length,
+      cachedAiTranslations: getNeuralCacheEntries(),
+      prebuiltCorpus: PREBUILT_CORPUS,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tabitalk-gemini-offline-pack.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-5 pb-28">
-      {/* 1. 오프라인 언어팩 캐싱 상태 배너 */}
-      <div className="rounded-[24px] bg-white border border-slate-200/80 p-4 shadow-sm flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
-              effectiveOffline
-                ? 'bg-amber-100 text-amber-700'
-                : 'bg-emerald-100 text-emerald-700'
+      {/* 1. 오프라인 언어팩 캐싱 상태 배너 + Gemini 2.5 Flash 대량 사전번역 빌더 */}
+      <div className="rounded-[24px] bg-white border border-slate-200/80 p-4 shadow-sm space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+                effectiveOffline
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-emerald-100 text-emerald-700'
+              }`}
+            >
+              {effectiveOffline ? (
+                <WifiOff className="w-5 h-5" />
+              ) : (
+                <Database className="w-5 h-5" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-extrabold text-slate-900">
+                  {effectiveOffline
+                    ? '✈️ 비행기(오프라인) 언어팩 모드 작동 중'
+                    : 'Gemini 오프라인 언어팩 기본 탑재 완료'}
+                </span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">
+                내장 문장 {packStats.totalSentences}개 · 어휘 {packStats.totalVocabulary}개 · 한자 루비 1,650+ 기기 탑재됨
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setForceOfflineMode((prev) => !prev)}
+            className={`px-3 py-2 rounded-xl text-[11px] font-extrabold transition shrink-0 cursor-pointer ${
+              forceOfflineMode
+                ? 'bg-amber-500 text-white shadow-sm'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
             }`}
           >
-            {effectiveOffline ? (
-              <WifiOff className="w-5 h-5" />
-            ) : (
-              <Database className="w-5 h-5" />
-            )}
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-extrabold text-slate-900">
-                {effectiveOffline
-                  ? '✈️ 비행기(오프라인) 언어팩 모드 작동 중'
-                  : '오프라인 언어팩 프리캐싱 완료'}
-              </span>
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            </div>
-            <p className="text-[11px] text-slate-500 font-medium">
-              내장 문장 {packStats.totalSentences}개 · 어휘 {packStats.totalVocabulary}개 기기 저장됨
-            </p>
-          </div>
+            {forceOfflineMode ? '온라인 복귀' : '✈️ 오프라인 체험'}
+          </button>
         </div>
 
-        <button
-          onClick={() => setForceOfflineMode((prev) => !prev)}
-          className={`px-3 py-2 rounded-xl text-[11px] font-extrabold transition shrink-0 cursor-pointer ${
-            forceOfflineMode
-              ? 'bg-amber-500 text-white shadow-sm'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-          }`}
-        >
-          {forceOfflineMode ? '온라인 복귀' : '✈️ 오프라인 체험'}
-        </button>
+        {/* Gemini API 키가 등록되어 있을 때: 원클릭 대량 사전번역(Pre-Warming) 컨트롤 */}
+        {hasAiKey && !effectiveOffline && (
+          <div className="pt-2.5 border-t border-slate-100 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[11px] text-slate-600 font-medium">
+                <span className="font-extrabold text-emerald-700">🚀 Gemini 2.5 Flash 대량 사전번역:</span>{' '}
+                일상·여행 심화 90문장 + 한자·어휘를 한 번에 오프라인 팩으로 추가 구축합니다 (예상 비용 약 $0.02)
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {cachedEntries.length > 0 && (
+                  <button
+                    onClick={handleExportOfflinePackJson}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
+                    title="번역된 오프라인 언어팩 JSON 다운로드"
+                  >
+                    📥 JSON 저장
+                  </button>
+                )}
+                <button
+                  onClick={handleRunGeminiBatchWarm}
+                  disabled={isBatchWarming}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-300 text-white text-[11px] font-extrabold shadow-xs transition cursor-pointer"
+                >
+                  {isBatchWarming ? '⚡ Gemini 대량 번역 중...' : '⚡ 90문장 일괄 사전번역'}
+                </button>
+              </div>
+            </div>
+
+            {batchProgress && (
+              <div className="p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200/80 text-[11px] space-y-1">
+                <div className="flex items-center justify-between font-bold text-emerald-900">
+                  <span>
+                    테마 ({batchProgress.completedBatches}/{batchProgress.totalBatches}):{' '}
+                    {batchProgress.currentTheme}
+                  </span>
+                  <span>
+                    누적 {batchProgress.totalSentencesGenerated}문장 · 한자 {batchProgress.totalKanjiLearned}개 · 약 $
+                    {batchProgress.estimatedCostUsd.toFixed(3)} / $5.00
+                  </span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-emerald-200 overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-600 transition-all duration-300"
+                    style={{
+                      width: `${Math.round(
+                        (batchProgress.completedBatches / batchProgress.totalBatches) * 100
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 2. 파파고 스타일 모던 양방향 번역 카드 */}
@@ -628,7 +756,19 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
 
         {/* 상황 카테고리 탭 */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {['식당', '쇼핑', '호텔', '교통', '알레르기', '병원', '긴급'].map((cat) => (
+          {cachedEntries.length > 0 && (
+            <button
+              onClick={() => setCorpusCategory('AI캐시')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold shrink-0 transition cursor-pointer ${
+                corpusCategory === 'AI캐시'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+              }`}
+            >
+              ✨ 내 AI 캐시 ({cachedEntries.length})
+            </button>
+          )}
+          {['일상', '식당', '쇼핑', '호텔', '교통', '알레르기', '병원', '긴급'].map((cat) => (
             <button
               key={cat}
               onClick={() => setCorpusCategory(cat)}
@@ -644,24 +784,53 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
         </div>
 
         <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
-          {filteredCorpus.map((item, idx) => (
-            <button
-              key={idx}
-              onClick={() => {
-                setDirection('ko-to-jp');
-                setInputText(item.ko);
-                handleTranslate(item.ko);
-              }}
-              className="text-left p-3 rounded-2xl bg-slate-50 hover:bg-indigo-50/70 border border-slate-200/60 hover:border-indigo-200 transition flex items-center justify-between gap-2 cursor-pointer group"
-            >
-              <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">
-                {item.ko}
-              </span>
-              <span className="text-[11px] font-semibold text-indigo-500 shrink-0">
-                번역 보기 →
-              </span>
-            </button>
-          ))}
+          {corpusCategory === 'AI캐시' ? (
+            cachedEntries.map((entry, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  setDirection(entry.direction);
+                  setInputText(entry.source);
+                  setTranslationResult({
+                    ...entry.output,
+                    engineType: 'offline-neural-cache',
+                  });
+                }}
+                className="text-left p-3 rounded-2xl bg-emerald-50/60 hover:bg-emerald-100/70 border border-emerald-200/80 transition flex items-center justify-between gap-2 cursor-pointer group"
+              >
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900 truncate">
+                    {entry.source}
+                  </div>
+                  <div className="text-[11px] font-semibold text-emerald-700 truncate">
+                    → {entry.output.japanese}
+                  </div>
+                </div>
+                <span className="text-[11px] font-extrabold text-emerald-600 shrink-0">
+                  캐시 불러오기 →
+                </span>
+              </button>
+            ))
+          ) : (
+            filteredCorpus.map((item, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  setDirection('ko-to-jp');
+                  setInputText(item.ko);
+                  handleTranslate(item.ko);
+                }}
+                className="text-left p-3 rounded-2xl bg-slate-50 hover:bg-indigo-50/70 border border-slate-200/60 hover:border-indigo-200 transition flex items-center justify-between gap-2 cursor-pointer group"
+              >
+                <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">
+                  {item.ko}
+                </span>
+                <span className="text-[11px] font-semibold text-indigo-500 shrink-0">
+                  번역 보기 →
+                </span>
+              </button>
+            ))
+          )}
         </div>
       </div>
 
