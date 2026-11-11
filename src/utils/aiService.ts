@@ -56,7 +56,8 @@ export async function translateWithAI(
 
   if (isGeminiKey) {
     const modelsToTry = [
-      aiConfig.model || 'gemini-2.5-flash',
+      aiConfig.model || 'gemini-3.8-flash',
+      'gemini-2.5-flash',
       'gemini-2.0-flash',
       'gemini-1.5-flash',
     ];
@@ -252,7 +253,8 @@ async function callGeminiAPI(
   aiConfig: AIConfig
 ): Promise<PartnerReplyResponse> {
   const modelsToTry = [
-    aiConfig.model || 'gemini-2.5-flash',
+    aiConfig.model || 'gemini-3.8-flash',
+    'gemini-2.5-flash',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
   ];
@@ -588,7 +590,7 @@ export async function batchWarmOfflinePackWithGemini(
   const key = aiConfig?.apiKey?.trim() || '';
   if (!key) throw new Error('Gemini API Key가 설정되지 않았습니다.');
 
-  const model = aiConfig.model || 'gemini-2.5-flash';
+  const model = aiConfig.model || 'gemini-3.8-flash';
   const MAX_BUDGET_USD = 5.0;
   let estimatedCostUsd = 0;
   let totalSentencesGenerated = 0;
@@ -667,7 +669,7 @@ ${theme.sentences.map((s, idx) => `${idx + 1}. ${s}`).join('\n')}
         ? parsed.vocabPairs
         : [];
 
-      // gemini-2.5-flash 토큰 단가 기준 배치당 약 $0.0025 산정 (안전 버퍼 포함)
+      // gemini-3.8-flash 토큰 단가 기준 배치당 약 $0.0025 산정 (안전 버퍼 포함)
       estimatedCostUsd += 0.003;
       totalSentencesGenerated += batchItems.length;
       totalKanjiLearned += batchKanji.length;
@@ -688,6 +690,203 @@ ${theme.sentences.map((s, idx) => `${idx + 1}. ${s}`).join('\n')}
   });
 
   return { totalGenerated: totalSentencesGenerated, totalCostUsd: estimatedCostUsd };
+}
+
+export interface CustomTopicOpening {
+  japanese: string;
+  furigana: string;
+  koreanPronunciation: string;
+  koreanTranslation: string;
+  realLifeTip: string;
+  partnerRoleName: string;
+  suggestedReplies: Array<{
+    japanese: string;
+    koreanPronunciation: string;
+    koreanTranslation: string;
+  }>;
+}
+
+export async function generateCustomTopicOpening(
+  topicTitle: string,
+  userRole: RoleType,
+  aiConfig: AIConfig
+): Promise<CustomTopicOpening> {
+  const isCustomer = userRole === 'customer';
+  const isGeminiKey =
+    aiConfig?.apiKey?.trim() &&
+    (aiConfig.provider === 'gemini' || aiConfig.apiKey.trim().startsWith('AIza'));
+
+  if (isGeminiKey) {
+    const modelsToTry = [
+      aiConfig.model || 'gemini-3.8-flash',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ];
+
+    const systemPrompt = `당신은 일본 여행 일상 회화 AI 대화 파트너입니다.
+사용자가 선택하거나 입력한 자유 회화 주제: "${topicTitle}"
+사용자의 역할: ${isCustomer ? '손님 / 여행객' : '점원 / 현지 안내인'}
+
+당신은 이 상황의 상대방(${isCustomer ? '일본 현지 점원이나 현지인 친구' : '일본인 고객이나 방문객'})으로서,
+상황에 딱 맞는 매우 자연스럽고 생생한 첫 인사와 질문 발화를 생성하세요.
+
+반드시 아래 순수 JSON 형식으로만 응답하세요:
+{
+  "partnerRoleName": "상대방 역할 이름 (예: 이자카야 옆자리 손님, 라멘집 직원, 호텔리어 등)",
+  "japanese": "일본어 첫 대사 (1~2문장)",
+  "furigana": "전체 히라가나 읽기",
+  "koreanPronunciation": "한글 발음",
+  "koreanTranslation": "한국어 번역",
+  "realLifeTip": "이 상황에서 일본인이 자주 쓰는 표현이나 문화 팁 (한국어)",
+  "suggestedReplies": [
+    {
+      "japanese": "사용자가 할 수 있는 자연스러운 첫 답변 1",
+      "koreanPronunciation": "한글 발음 1",
+      "koreanTranslation": "한국어 뜻 1"
+    },
+    {
+      "japanese": "사용자가 할 수 있는 자연스러운 첫 답변 2",
+      "koreanPronunciation": "한글 발음 2",
+      "koreanTranslation": "한국어 뜻 2"
+    }
+  ]
+}`;
+
+    for (const model of modelsToTry) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
+          aiConfig.apiKey.trim()
+        )}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.7,
+            },
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          const cleaned = raw.replace(/```json|```/g, '').trim();
+          const parsed = JSON.parse(cleaned);
+          if (parsed?.japanese) {
+            return {
+              partnerRoleName: parsed.partnerRoleName || (isCustomer ? '점원' : '손님'),
+              japanese: parsed.japanese,
+              furigana: parsed.furigana || parsed.japanese,
+              koreanPronunciation: parsed.koreanPronunciation || '',
+              koreanTranslation: parsed.koreanTranslation || '',
+              realLifeTip: parsed.realLifeTip || '상황에 맞춰 편안하게 대답해 보세요.',
+              suggestedReplies: Array.isArray(parsed.suggestedReplies)
+                ? parsed.suggestedReplies
+                : [],
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('Gemini opening generation failed, trying next:', err);
+      }
+    }
+  }
+
+  // 오프라인 / 시뮬레이션 기본 스마트 오프닝
+  const t = topicTitle.toLowerCase();
+  if (t.includes('라멘') || t.includes('식당') || t.includes('카페') || t.includes('이자카야') || t.includes('주문')) {
+    return {
+      partnerRoleName: '매장 점원',
+      japanese: 'いらっしゃいませ！何名様ですか？店内でお召し上がりですか？',
+      furigana: 'いらっしゃいませ！なんめいさまですか？てんないでおめしあがりですか？',
+      koreanPronunciation: '이랏샤이마세! 난메-사마데스카? 텐나이데 오메시아가리데스카?',
+      koreanTranslation: '어서 오세요! 몇 분이신가요? 매장에서 드시고 가시나요?',
+      realLifeTip: '일본 식당에 들어가면 가장 먼저 인원수와 매장 식사 여부를 확인합니다.',
+      suggestedReplies: [
+        {
+          japanese: '一人です。店内で食べていきます。',
+          koreanPronunciation: '히토리데스. 텐나이데 타베테 이키마스.',
+          koreanTranslation: '한 명입니다. 매장에서 먹고 갈게요.',
+        },
+        {
+          japanese: '二人です。カウンター席で大丈夫です。',
+          koreanPronunciation: '후타리데스. 카운타-세키데 다이죠-부데스.',
+          koreanTranslation: '두 명입니다. 카운터석도 괜찮아요.',
+        },
+      ],
+    };
+  }
+
+  if (t.includes('스몰토크') || t.includes('현지인') || t.includes('친구') || t.includes('대화') || t.includes('취미')) {
+    return {
+      partnerRoleName: '현지인 친구',
+      japanese: 'こんにちは！韓国から旅行で来られたんですか？日本はどうですか？',
+      furigana: 'こんにちは！かんこくからりょこうでこられたんですか？にほんはどうですか？',
+      koreanPronunciation: '콘니치와! 칸코쿠카라 료코-데 코라레탄데스카? 니혼와 도-데스카?',
+      koreanTranslation: '안녕하세요! 한국에서 여행 오신 건가요? 일본은 어떠세요?',
+      realLifeTip: '자연스러운 스몰토크에서는 여행 경험이나 좋아하는 일본 음식 이야기를 꺼내면 대화가 편안해집니다.',
+      suggestedReplies: [
+        {
+          japanese: 'はい、韓国のソウルから来ました！日本のご飯がとても美味しいです。',
+          koreanPronunciation: '하이, 칸코쿠노 소우루카라 키마시타! 니혼노 고항가 토테모 오이시이데스.',
+          koreanTranslation: '네, 한국 서울에서 왔어요! 일본 음식이 정말 맛있어요.',
+        },
+        {
+          japanese: '旅行は初めてなんですが、街が綺麗でとても楽しいです。',
+          koreanPronunciation: '료코-와 하지메테난데스가, 마치가 키레이데 토테모 타노시이데스.',
+          koreanTranslation: '여행은 처음인데 거리가 깨끗하고 정말 즐거워요.',
+        },
+      ],
+    };
+  }
+
+  if (t.includes('호텔') || t.includes('숙소') || t.includes('체크인') || t.includes('짐')) {
+    return {
+      partnerRoleName: '호텔 프런트 직원',
+      japanese: 'いらっしゃいませ。チェックインのお客様でしょうか？ご予約のお名前をお願いします。',
+      furigana: 'いらっしゃいませ。ちぇっくいんのおきゃくさまでしょうか？ごよやくのおなまえをおねがいします。',
+      koreanPronunciation: '이랏샤이마세. 첵쿠인노 오캬쿠사마데쇼-카? 고요야쿠노 오나마에오 오네가이시마스.',
+      koreanTranslation: '어서 오세요. 체크인 손님이실까요? 예약하신 성함 부탁드립니다.',
+      realLifeTip: '체크인 시 여권과 예약 바우처나 성함을 보여주시면 신속하게 진행됩니다.',
+      suggestedReplies: [
+        {
+          japanese: 'チェックインをお願いします。予約したキムです。パスポートはこちらです。',
+          koreanPronunciation: '첵쿠인오 오네가이시마스. 요야쿠시타 키무데스. 파스포-토와 코치라데스.',
+          koreanTranslation: '체크인 부탁합니다. 예약자 김입니다. 여권 여기 있어요.',
+        },
+        {
+          japanese: 'チェックイン前なんですが、先に荷物を預かってもらえますか？',
+          koreanPronunciation: '첵쿠인 마에난데스가, 사키니 니모츠오 아즈캇테 모라에마스카?',
+          koreanTranslation: '체크인 전인데, 먼저 짐을 맡길 수 있나요?',
+        },
+      ],
+    };
+  }
+
+  // 기본 일상 상황
+  return {
+    partnerRoleName: isCustomer ? '상대방' : '손님',
+    japanese: `こんにちは！「${topicTitle}」についてですね。何かお手伝いできることはありますか？`,
+    furigana: `こんにちは！「${topicTitle}」についてですね。なにかおてつだいできることはありますか？`,
+    koreanPronunciation: `콘니치와! 「${topicTitle}」니 츠이테데스네. 나니카 오테츠다이 데키루 코토와 아리마스카?`,
+    koreanTranslation: `안녕하세요! 「${topicTitle}」 상황이시군요. 무엇을 도와드릴까요?`,
+    realLifeTip: '자유롭게 일본어로 말해보세요. 한국어로 입력하셔도 AI가 상황에 맞춰 자연스럽게 대화를 이어갑니다.',
+    suggestedReplies: [
+      {
+        japanese: 'すみません、これについて少し教えていただけますか？',
+        koreanPronunciation: '스미마센, 코레니 츠이테 스코시 오시에테 이타다케마스카?',
+        koreanTranslation: '죄송한데, 이것에 대해 조금 알려주실 수 있나요?',
+      },
+      {
+        japanese: 'よろしくお願いします！',
+        koreanPronunciation: '요로시쿠 오네가이시마스!',
+        koreanTranslation: '잘 부탁드립니다!',
+      },
+    ],
+  };
 }
 
 

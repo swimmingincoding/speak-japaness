@@ -136,8 +136,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="grid grid-cols-3 gap-2">
             {(
               [
-                { id: 'simulation', label: '내장 하이브리드 (기본)' },
-                { id: 'gemini', label: 'Google Gemini' },
+                { id: 'simulation', label: '내장 오프라인' },
+                { id: 'gemini', label: 'Gemini 3.8 Flash' },
                 { id: 'openai', label: 'OpenAI GPT' },
               ] as const
             ).map((opt) => (
@@ -159,7 +159,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="space-y-2.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {aiConfig.provider === 'openai' ? 'OpenAI API Key' : 'Gemini API Key'}
+                  {aiConfig.provider === 'openai' ? 'OpenAI API Key' : 'Gemini 3.8 Flash API Key'}
                 </label>
                 <input
                   type="password"
@@ -181,8 +181,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                 />
-                <p className="text-[11px] text-emerald-700 font-semibold mt-1.5">
-                  ✨ API 키 입력 시 [실전 AI 프리토킹], [나만의 상황 생성], [실시간 번역·SOS] 모두 해당 LLM이 최우선 작동합니다.
+                <p className="text-[11px] text-emerald-700 font-semibold mt-1.5 leading-relaxed">
+                  ✨ Google AI Studio의 <strong>Gemini 3.8 Flash</strong> 모델이 최우선 작동하여 [AI 프리토킹], [자유 주제 대화], [실시간 번역] 모두 원어민 수준의 자연스러움을 제공합니다.
                 </p>
               </div>
             </div>

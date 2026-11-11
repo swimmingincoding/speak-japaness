@@ -20,7 +20,8 @@ import {
   kanaToKoreanPronunciation,
 } from '../utils/japanesePhonetics';
 import { executeOfflineTranslation } from '../utils/offlineEngine';
-import { generatePartnerReply } from '../utils/aiService';
+import { generatePartnerReply, generateCustomTopicOpening } from '../utils/aiService';
+import { CURATED_FREETALK_TOPICS, FreeTalkTopic, createCustomTopic } from '../data/freeTalkTopics';
 import { FuriganaText } from './FuriganaText';
 import {
   ArrowLeft,
@@ -45,6 +46,8 @@ import {
   Volume1,
   Check,
   SlidersHorizontal,
+  X,
+  Plus,
 } from 'lucide-react';
 
 interface RolePlayRoomProps {
@@ -90,6 +93,10 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
   const [freeMessages, setFreeMessages] = useState<FreeTalkMessage[]>([]);
   const [freeInput, setFreeInput] = useState<string>('');
   const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
+  const [activeFreeTopic, setActiveFreeTopic] = useState<FreeTalkTopic | null>(null);
+  const [isTopicModalOpen, setIsTopicModalOpen] = useState<boolean>(false);
+  const [customTopicInput, setCustomTopicInput] = useState<string>('');
+  const [isChangingTopic, setIsChangingTopic] = useState<boolean>(false);
 
   const recognitionRef = useRef<RecognitionHandle | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
@@ -278,6 +285,42 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
     recognitionRef.current = handle;
   };
 
+  const handleSelectFreeTalkTopic = async (topic: FreeTalkTopic) => {
+    setActiveFreeTopic(topic);
+    setIsChangingTopic(true);
+    setIsTopicModalOpen(false);
+    stopSpeaking();
+
+    try {
+      const openingData = await generateCustomTopicOpening(topic.title, userRole, aiConfig);
+      const openingMsg: FreeTalkMessage = {
+        id: `partner-opening-${Date.now()}`,
+        sender: 'partner',
+        role: userRole === 'customer' ? 'staff' : 'customer',
+        japanese: openingData.japanese,
+        furigana: openingData.furigana,
+        koreanPronunciation: openingData.koreanPronunciation,
+        koreanTranslation: openingData.koreanTranslation,
+        realLifeTip: openingData.realLifeTip,
+        suggestedReplies: openingData.suggestedReplies,
+      };
+      setFreeMessages([openingMsg]);
+      if (displaySettings.autoPlayPartnerAudio) {
+        speakJapanese(openingData.japanese, displaySettings.ttsSpeed);
+      }
+    } finally {
+      setIsChangingTopic(false);
+    }
+  };
+
+  const handleCreateCustomFreeTalkTopic = async (customTitle: string) => {
+    const clean = customTitle.trim();
+    if (!clean) return;
+    const topic = createCustomTopic(clean, userRole);
+    await handleSelectFreeTalkTopic(topic);
+    setCustomTopicInput('');
+  };
+
   const handleSendFreeTalk = async (textToSend?: string) => {
     const content = (textToSend ?? freeInput).trim();
     if (!content || isAiThinking) return;
@@ -304,8 +347,20 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
     setFreeInput('');
     setIsAiThinking(true);
 
+    const currentScenarioContext: Scenario = activeFreeTopic
+      ? {
+          ...scenario,
+          id: activeFreeTopic.id,
+          title: activeFreeTopic.title,
+          placeName: activeFreeTopic.category,
+          situationBrief: activeFreeTopic.situationBrief,
+          customerRoleName: activeFreeTopic.userRoleName,
+          staffRoleName: activeFreeTopic.partnerRoleName,
+        }
+      : scenario;
+
     const reply = await generatePartnerReply(
-      scenario,
+      currentScenarioContext,
       userRole,
       nextHistory,
       content,
@@ -817,25 +872,45 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
         {/* ======================================================== */}
         {mode === 'freetalk' && (
           <div className="space-y-4">
-            {/* 프리토킹 미션 알림 */}
-            <div className="rounded-2xl bg-emerald-50/80 border border-emerald-200/90 p-4 space-y-2">
-              <span className="text-xs font-extrabold text-emerald-800">
-                🎯 프리토킹 미션 ({userRole === 'customer' ? '손님 A' : '점원 B'})
-              </span>
-              <ul className="space-y-1.5 text-xs text-emerald-950 font-medium">
-                {(userRole === 'customer'
-                  ? scenario.freeTalkStarter.customerStarts.missions
-                  : scenario.freeTalkStarter.staffStarts.missions
-                ).map((m, idx) => (
-                  <li key={idx} className="flex items-center gap-2">
-                    <span className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                      {idx + 1}
-                    </span>
-                    <span>{m}</span>
-                  </li>
-                ))}
-              </ul>
+            {/* 인터랙티브 대화 주제 배너 & 상황 선택기 */}
+            <div className="rounded-[26px] bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 p-4.5 text-white shadow-md shadow-emerald-900/10 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-[11px] font-black text-emerald-100">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>{activeFreeTopic ? activeFreeTopic.category : '시나리오 연계 대화'}</span>
+                </span>
+                <button
+                  onClick={() => setIsTopicModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-white text-emerald-800 text-xs font-black shadow-xs hover:bg-emerald-50 active:scale-95 transition cursor-pointer flex items-center gap-1 shrink-0"
+                >
+                  <span>주제 선택 & 직접 입력 ▾</span>
+                </button>
+              </div>
+
+              <div>
+                <h3 className="text-base sm:text-lg font-black leading-snug tracking-tight">
+                  {activeFreeTopic ? activeFreeTopic.title : scenario.title}
+                </h3>
+                <p className="text-xs text-emerald-100/90 mt-1 leading-relaxed">
+                  {activeFreeTopic ? activeFreeTopic.situationBrief : scenario.situationBrief}
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-white/15 flex items-center justify-between text-[11px] text-emerald-100/90 font-semibold">
+                <span>
+                  대화 상대: <strong className="text-white">{activeFreeTopic ? activeFreeTopic.partnerRoleName : (userRole === 'customer' ? scenario.staffRoleName : scenario.customerRoleName)}</strong>
+                </span>
+                <span>
+                  내 역할: <strong className="text-amber-300">{userRole === 'customer' ? '손님(A)' : '점원(B)'}</strong>
+                </span>
+              </div>
             </div>
+
+            {isChangingTopic && (
+              <div className="rounded-2xl bg-white border border-slate-200 p-4 text-center text-xs text-slate-600 font-bold animate-pulse">
+                새로운 대화 주제로 원어민 파트너를 준비하고 있습니다...
+              </div>
+            )}
 
             {/* 메시지 리스트 */}
             <div className="space-y-3">
@@ -1150,6 +1225,132 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
               >
                 <Send className="w-4 h-4" />
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ======================================================== */}
+      {/* 4. AI 프리토킹 대화 주제 선택 & 사용자 직접 입력 모달 */}
+      {/* ======================================================== */}
+      {isTopicModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="w-full max-w-[480px] bg-white rounded-t-[32px] sm:rounded-[32px] max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-slideUp">
+            {/* 모달 상단 헤더 */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <span>AI 프리토킹 대화 주제 선택</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  원하는 대화 상황을 직접 입력하거나 인기 주제에서 골라보세요.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsTopicModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 모달 본문 (스크롤) */}
+            <div className="p-5 overflow-y-auto space-y-5">
+              {/* 섹션 1: 사용자가 직접 대화 주제 입력하기 */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200/80 space-y-3">
+                <div className="flex items-center gap-1.5 text-xs font-black text-emerald-900">
+                  <Plus className="w-4 h-4 text-emerald-600" />
+                  <span>대화 상황 직접 입력하기</span>
+                </div>
+
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={customTopicInput}
+                    onChange={(e) => setCustomTopicInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCreateCustomFreeTalkTopic(customTopicInput);
+                    }}
+                    placeholder="예: 이자카야에서 옆자리 사람과 애니메이션 이야기하기..."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-emerald-300 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 font-medium"
+                  />
+
+                  {/* 빠른 추천 입력 칩 */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      '이자카야에서 옆자리 사람과 애니 이야기',
+                      '시부야 카페에서 옆사람과 여행 수다',
+                      '디즈니랜드에서 잃어버린 가방 찾기',
+                      '약국에서 알레르기 비염약 사기',
+                    ].map((chip, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCustomTopicInput(chip)}
+                        className="text-[10px] px-2.5 py-1 rounded-lg bg-white/80 hover:bg-white text-emerald-800 border border-emerald-200 font-bold transition cursor-pointer"
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => handleCreateCustomFreeTalkTopic(customTopicInput)}
+                    disabled={!customTopicInput.trim()}
+                    className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-black text-xs shadow-sm transition cursor-pointer active:scale-[0.99]"
+                  >
+                    이 주제로 AI와 대화 시작 🚀
+                  </button>
+                </div>
+              </div>
+
+              {/* 섹션 2: 인기 대화 주제 큰 틀 (카테고리별 큐레이션) */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-800">
+                    인기 대화 상황 큰 틀에서 고르기
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-bold">
+                    {CURATED_FREETALK_TOPICS.length}개 준비됨
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {CURATED_FREETALK_TOPICS.map((topic) => {
+                    const isCurrent = activeFreeTopic?.id === topic.id;
+                    return (
+                      <button
+                        key={topic.id}
+                        onClick={() => handleSelectFreeTalkTopic(topic)}
+                        className={`w-full text-left p-3.5 rounded-2xl border transition cursor-pointer space-y-1.5 ${
+                          isCurrent
+                            ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20'
+                            : 'bg-white border-slate-200 hover:border-emerald-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{topic.categoryEmoji}</span>
+                            <span className="text-[11px] font-black text-emerald-700">
+                              {topic.category}
+                            </span>
+                          </div>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                            상대: {topic.partnerRoleName}
+                          </span>
+                        </div>
+
+                        <div className="font-extrabold text-slate-900 text-xs sm:text-sm">
+                          {topic.title}
+                        </div>
+
+                        <div className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                          {topic.situationBrief}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </div>

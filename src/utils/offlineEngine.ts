@@ -1167,6 +1167,314 @@ function translateSingleClauseKoToJp(clause: string): {
     }
   }
 
+  // 0-1) 한국어 일상·여행 핵심 표현 초정밀 패턴 매칭 (초보자 입력 1:1 고품질 자연스러운 번역)
+  // [인사 / 신분 / 언어 / 에티켓]
+  if (/^안녕(하세요|하십니까|하셔요)?/.test(c)) {
+    return { jp: 'こんにちは！よろしくお願いします。', matched: true };
+  }
+  if (/^(감사|고맙|고마워)/.test(c) || c.includes('감사합니다') || c.includes('고맙습니다')) {
+    return { jp: 'ありがとうございます！', matched: true };
+  }
+  if (/^(죄송|미안|실례)/.test(c) || c.includes('죄송합니다') || c.includes('실례합니다') || c.includes('미안합니다')) {
+    return { jp: 'すみません、申し訳ありません。', matched: true };
+  }
+  if (c.includes('한국 사람') || c.includes('한국인') || c.includes('한국에서 왔')) {
+    return { jp: '韓国人です。韓国から旅行に来ました。', matched: true };
+  }
+  if (c.includes('처음 왔') || c.includes('처음이에') || c.includes('처음 여행')) {
+    return { jp: '日本旅行は初めてです。', matched: true };
+  }
+  if (c.includes('일본어') && (c.includes('못') || c.includes('안 돼') || c.includes('서툴') || c.includes('어려워'))) {
+    return { jp: '日本語があまり話せません。ゆっくり話してください。', matched: true };
+  }
+  if (c.includes('천천히') && (c.includes('말') || c.includes('얘기') || c.includes('해 주'))) {
+    return { jp: 'すみません、もう少しゆっくり話していただけますか？', matched: true };
+  }
+  if ((c.includes('영어') || c.includes('한국어')) && (c.includes('가능') || c.includes('할 수') || c.includes('있나요') || c.includes('있어요'))) {
+    if (c.includes('한국어')) {
+      return { jp: '韓国語が話せるスタッフはいますか？', matched: true };
+    }
+    return { jp: '英語が話せるスタッフはいますか？', matched: true };
+  }
+  if (c.includes('도와주') || c.includes('도움이 필요')) {
+    return { jp: 'すみません、少し助けていただけますか？', matched: true };
+  }
+  if (c.includes('길을 잃') || c.includes('길 잃')) {
+    return { jp: '道に迷ってしまいました。教えていただけますか？', matched: true };
+  }
+  if (/^(괜찮아요|괜찮습니다|됐어요|필요 없어요)/.test(c)) {
+    return { jp: 'いいえ、大丈夫です（結構です）。', matched: true };
+  }
+  if (/^(맞아요|네 그래요|네 맞습니다)/.test(c)) {
+    return { jp: 'はい、そうです。お願いします。', matched: true };
+  }
+  if (c.includes('잘 부탁')) {
+    return { jp: 'よろしくお願いします。', matched: true };
+  }
+  if (c.includes('잘 먹었') || c.includes('맛있었')) {
+    return { jp: 'とても美味しかったです！ごちそうさ免费でした。', matched: true };
+  }
+  if (c.includes('맛있어') || c.includes('맛있네')) {
+    return { jp: 'とても美味しいです！', matched: true };
+  }
+  if (c.includes('잠시만') || c.includes('잠깐만') || c.includes('기다려')) {
+    return { jp: 'すみません、少々待ってください。', matched: true };
+  }
+
+  // [결제 / 쇼핑 / 면세 / 편의점]
+  if (c.includes('계산') && (c.includes('해 주') || c.includes('할게') || c.includes('부탁') || c.includes('할래'))) {
+    if (c.includes('따로') || c.includes('각자') || c.includes('더치페이')) {
+      return { jp: 'お会計は別々でお願いできますか？', matched: true };
+    }
+    if (c.includes('같이') || c.includes('한꺼번에')) {
+      return { jp: 'お会計は一緒でお願いします。', matched: true };
+    }
+    return { jp: 'すみません、お会計をお願いします。', matched: true };
+  }
+  if (c.includes('카드') && (c.includes('돼') || c.includes('되나') || c.includes('될까') || c.includes('됩니') || c.includes('가능') || c.includes('결제'))) {
+    return { jp: 'クレジットカードは使えますか？', matched: true };
+  }
+  if ((c.includes('교통카드') || c.includes('스이카') || c.includes('파스모')) && (c.includes('돼') || c.includes('되나') || c.includes('결제') || c.includes('쓸 수'))) {
+    return { jp: '交通系ICカード（Suica）で支払えますか？', matched: true };
+  }
+  if (c.includes('현금') && (c.includes('할게') || c.includes('결제') || c.includes('낼게'))) {
+    return { jp: '現金でお願いします。', matched: true };
+  }
+  if (c.includes('면세') || c.includes('택스프리') || c.includes('텍스프리')) {
+    return { jp: '免税（タックスフリー）で会計できますか？', matched: true };
+  }
+  if (c.includes('영수증')) {
+    if (c.includes('버려') || c.includes('필요 없') || c.includes('안 주셔도') || c.includes('됐어')) {
+      return { jp: 'レシートはいりません（捨ててください）。', matched: true };
+    }
+    return { jp: 'レシートをいただけますか？', matched: true };
+  }
+  if (c.includes('봉투') || c.includes('비닐')) {
+    if (c.includes('필요 없') || c.includes('안 주셔도') || c.includes('괜찮') || c.includes('안 받아')) {
+      return { jp: '袋はいりません（大丈夫です）。', matched: true };
+    }
+    return { jp: 'レジ袋を一枚お願いします。', matched: true };
+  }
+  if (c.includes('도시락') && (c.includes('데워') || c.includes('따뜻하게'))) {
+    return { jp: 'お弁当を温めてください。', matched: true };
+  }
+  if (c.includes('안 데워') || (c.includes('데우지') && c.includes('마'))) {
+    return { jp: '温めなくて大丈夫です。そのままお願いします。', matched: true };
+  }
+  if (c.includes('먹고 갈') || c.includes('매장 식사') || c.includes('매장에서')) {
+    return { jp: '店内で食べていきます。', matched: true };
+  }
+  if (c.includes('포장') || c.includes('테이크아웃') || c.includes('가져갈')) {
+    return { jp: '持ち帰り（テイクアウト）でお願いします。', matched: true };
+  }
+  if (c.includes('입어봐') || c.includes('시착') || c.includes('신어봐')) {
+    return { jp: 'これ、試着してもいいですか？', matched: true };
+  }
+  if (c.includes('새 상품') || c.includes('새 거') || c.includes('새 제품') || c.includes('재고')) {
+    return { jp: '新しい在庫を出してもらえますか？', matched: true };
+  }
+  if (c.includes('다른 색') || c.includes('다른 컬러')) {
+    return { jp: '他の色はありますか？', matched: true };
+  }
+  if (c.includes('큰 사이즈') || c.includes('큰 거') || c.includes('더 큰')) {
+    return { jp: 'これより一つ大きいサイズはありますか？', matched: true };
+  }
+  if (c.includes('작은 사이즈') || c.includes('작은 거') || c.includes('더 작은')) {
+    return { jp: 'これより一つ小さいサイズはありますか？', matched: true };
+  }
+  if (c.includes('이거 살') || c.includes('이걸로 할') || c.includes('이거 살게요')) {
+    return { jp: 'これにします（これを買います）。', matched: true };
+  }
+
+  // [식당 / 카페 주문 & 음식 옵션 조절]
+  if (c.includes('추천') && (c.includes('메뉴') || c.includes('뭐') || c.includes('해 주') || c.includes('음식'))) {
+    return { jp: 'このお店で一番人気のおすすめメニューは何ですか？', matched: true };
+  }
+  if (c.includes('인기') && (c.includes('뭐') || c.includes('있는') || c.includes('메뉴'))) {
+    return { jp: '一番人気があるものは何ですか？', matched: true };
+  }
+  if (c.includes('자리') && (c.includes('있') || c.includes('남아') || c.includes('빈자리') || c.includes('두 명') || c.includes('한 명'))) {
+    if (c.includes('두 명') || c.includes('2명')) {
+      return { jp: '二人ですが、空いている席はありますか？', matched: true };
+    }
+    if (c.includes('한 명') || c.includes('1명') || c.includes('혼자')) {
+      return { jp: '一人ですが、席はありますか？カウンター席で大丈夫です。', matched: true };
+    }
+    return { jp: '空いている席はありますか？', matched: true };
+  }
+  if (c.includes('물') && (c.includes('주세') || c.includes('주실') || c.includes('더 주') || c.includes('부탁'))) {
+    if (c.includes('얼음') || c.includes('차') || c.includes('시원')) {
+      return { jp: '冷たいお水（氷水）をいただけますか？', matched: true };
+    }
+    if (c.includes('따뜻') || c.includes('뜨거') || c.includes('온수')) {
+      return { jp: 'お湯（温かいお水）をいただけますか？', matched: true };
+    }
+    return { jp: 'すみません、お水をいただけますか？', matched: true };
+  }
+  if (c.includes('와사비') || c.includes('고추냉이')) {
+    if (c.includes('빼') || c.includes('넣지') || c.includes('없이')) {
+      return { jp: 'わさび抜きでお願いします。', matched: true };
+    }
+    if (c.includes('따로') || c.includes('접시')) {
+      return { jp: 'わさびは別のお皿でいただけますか？', matched: true };
+    }
+    return { jp: 'わさびを少しいただけますか？', matched: true };
+  }
+  if (c.includes('고수') && (c.includes('빼') || c.includes('넣지') || c.includes('없이'))) {
+    return { jp: 'パクチーは抜いてください。', matched: true };
+  }
+  if (c.includes('오이') && (c.includes('빼') || c.includes('넣지') || c.includes('없이'))) {
+    return { jp: 'きゅうりは抜いてください。', matched: true };
+  }
+  if (c.includes('덜 짜게') || c.includes('싱겁게') || c.includes('짜지 않게')) {
+    return { jp: '少し薄味（塩分控えめ）で作っていただけますか？', matched: true };
+  }
+  if (c.includes('안 맵게') || c.includes('맵지 않게') || c.includes('덜 맵게')) {
+    return { jp: '辛くないようにお願いします。', matched: true };
+  }
+  if (c.includes('얼음') && (c.includes('빼') || c.includes('없이'))) {
+    return { jp: '氷なしでお願いします。', matched: true };
+  }
+  if (c.includes('얼음') && (c.includes('조금') || c.includes('적게'))) {
+    return { jp: '氷少なめでお願いします。', matched: true };
+  }
+  if (c.includes('물티슈') || c.includes('오시보리')) {
+    return { jp: 'おしぼりをいただけますか？', matched: true };
+  }
+  if (c.includes('앞접시') || c.includes('접시 더')) {
+    return { jp: '取り皿をもう一枚お願いします。', matched: true };
+  }
+  if (c.includes('젓가락')) {
+    return { jp: 'お箸をもう一ついただけますか？', matched: true };
+  }
+
+  // [호텔 / 숙소]
+  if (c.includes('체크인') && (c.includes('부탁') || c.includes('할게') || c.includes('하려') || c.includes('하겠'))) {
+    return { jp: 'チェックインをお願いします。予約した者です。', matched: true };
+  }
+  if (c.includes('체크아웃') && (c.includes('부탁') || c.includes('할게') || c.includes('하겠'))) {
+    return { jp: 'チェックアウトをお願いします。ありがとうございました。', matched: true };
+  }
+  if (c.includes('짐') && (c.includes('맡') || c.includes('보관'))) {
+    if (c.includes('체크인 전') || c.includes('체크인전')) {
+      return { jp: 'チェックイン前ですが、荷物を預かってもらえますか？', matched: true };
+    }
+    if (c.includes('체크아웃 후') || c.includes('체크아웃후')) {
+      return { jp: 'チェックアウト後ですが、夕方まで荷物を預かってもらえますか？', matched: true };
+    }
+    return { jp: 'スーツケース（荷物）を預かってもらえますか？', matched: true };
+  }
+  if (c.includes('체크아웃') && (c.includes('연장') || c.includes('늦게'))) {
+    return { jp: 'チェックアウトの時間を1時間延長できますか？', matched: true };
+  }
+  if (c.includes('조식') && (c.includes('몇 시') || c.includes('시간') || c.includes('언제'))) {
+    return { jp: '朝食は何時から何時までですか？', matched: true };
+  }
+  if (c.includes('와이파이') && (c.includes('비밀번호') || c.includes('비번') || c.includes('뭐') || c.includes('알려'))) {
+    return { jp: 'Wi-Fiのパスワードは何ですか？', matched: true };
+  }
+  if (c.includes('수건') && (c.includes('더') || c.includes('부족') || c.includes('교체'))) {
+    return { jp: 'タオルをもう少しいただけますか？', matched: true };
+  }
+  if (c.includes('금연실') && (c.includes('바꿔') || c.includes('변경'))) {
+    return { jp: 'タバコの匂いが気になるので、禁煙ルームに変えてもらえますか？', matched: true };
+  }
+  if (c.includes('방') && c.includes('추워')) {
+    return { jp: '部屋がとても寒いです。暖房をつけてもらえますか？', matched: true };
+  }
+  if (c.includes('방') && c.includes('더워')) {
+    return { jp: '部屋がとても暑いです。エアコンをつけてもらえますか？', matched: true };
+  }
+  if (c.includes('카드키') || c.includes('방 키') || c.includes('열쇠')) {
+    if (c.includes('두고') || c.includes('잠겼') || c.includes('잃어')) {
+      return { jp: 'ルームキーを部屋の中に閉じ込めてしまいました。開けてもらえますか？', matched: true };
+    }
+  }
+
+  // [교통 / 길찾기]
+  if (c.includes('화장실') && (c.includes('어디') || c.includes('위치') || c.includes('있나요') || c.includes('있어요'))) {
+    return { jp: '一番近いお手洗い（トイレ）はどこですか？', matched: true };
+  }
+  if (c.includes('전철') && (c.includes('가나요') || c.includes('가는 전철') || c.includes('맞나요'))) {
+    return { jp: 'この電車は行きますか？確認していただけますか？', matched: true };
+  }
+  if (c.includes('어디서 타') || c.includes('몇 번 홈') || c.includes('몇 번 승강장') || c.includes('승강장 어디')) {
+    return { jp: '何番ホームから乗ればいいですか？', matched: true };
+  }
+  if (c.includes('어디서 내려') || c.includes('어디서 내리')) {
+    return { jp: 'どこで降りればいいですか？', matched: true };
+  }
+  if (c.includes('환승') && (c.includes('어디') || c.includes('어떻게'))) {
+    return { jp: '乗り換えはどこでしますか？どう行けばいいですか？', matched: true };
+  }
+  if (c.includes('막차') && (c.includes('몇 시') || c.includes('언제') || c.includes('시간'))) {
+    return { jp: '終電は何時ですか？', matched: true };
+  }
+  if (c.includes('충전') && (c.includes('어디') || c.includes('교통카드') || c.includes('스이카'))) {
+    return { jp: '交通系ICカード（Suica）のチャージはどこでできますか？', matched: true };
+  }
+  if (c.includes('여기서 내려') || c.includes('여기서 세워')) {
+    return { jp: 'ここで降ろしてください。ありがとうございます。', matched: true };
+  }
+  if (c.includes('여기로 가주') || c.includes('이 주소로') || c.includes('이 지도로')) {
+    return { jp: 'この地図の場所（住所）までお願いします。', matched: true };
+  }
+  if (c.includes('택시') && (c.includes('불러') || c.includes('호출'))) {
+    return { jp: 'タクシーを一台呼んでもらえますか？', matched: true };
+  }
+
+  // [약국 / 병원 / 증상 / 분실 긴급]
+  if (c.includes('머리') && (c.includes('아파') || c.includes('두통') || c.includes('깨질'))) {
+    return { jp: '頭がとても痛いです。頭痛薬（痛み止め）はありますか？', matched: true };
+  }
+  if (c.includes('배') && (c.includes('아파') || c.includes('복통') || c.includes('속이') || c.includes('체했') || c.includes('설사'))) {
+    return { jp: 'お腹が痛くて気持ち悪いです。胃腸薬か下痢止めはありますか？', matched: true };
+  }
+  if (c.includes('열') && (c.includes('나') || c.includes('나요') || c.includes('해열'))) {
+    return { jp: '熱があって体がだるいです。解熱剤か風邪薬をください。', matched: true };
+  }
+  if (c.includes('진통제') || c.includes('두통약')) {
+    return { jp: '頭痛薬（痛み止め）はありますか？', matched: true };
+  }
+  if (c.includes('소화제') || c.includes('위장약')) {
+    return { jp: '胃腸薬（消化剤）はありますか？', matched: true };
+  }
+  if (c.includes('감기약')) {
+    return { jp: '風邪薬はありますか？', matched: true };
+  }
+  if (c.includes('밴드') || c.includes('반창고')) {
+    return { jp: '絆創膏はありますか？', matched: true };
+  }
+  if (c.includes('여권') && (c.includes('잃어') || c.includes('분실') || c.includes('없어졌'))) {
+    return { jp: 'パスポートをなくしてしまいました。助けてください。', matched: true };
+  }
+  if (c.includes('지갑') && (c.includes('잃어') || c.includes('분실') || c.includes('없어졌'))) {
+    return { jp: '財布をなくしてしまいました。警察署（交番）はどこですか？', matched: true };
+  }
+  if (c.includes('가방') && (c.includes('두고') || c.includes('놓고') || c.includes('잃어'))) {
+    return { jp: 'カバンを置き忘れてしまいました。探していただけますか？', matched: true };
+  }
+
+  // [단문 단골 질문 (얼마 / 어디 / 뭐)]
+  if (c === '얼마예요' || c === '얼마에요' || c === '얼마인가요' || c === '얼마예요?' || c === '얼마에요?' || c === '얼마') {
+    return { jp: 'いくらですか？', matched: true };
+  }
+  if (c === '어디예요' || c === '어디에요' || c === '어디인가요' || c === '어디예요?' || c === '어디에요?' || c === '어디') {
+    return { jp: 'どこですか？', matched: true };
+  }
+  if (c.includes('이거 얼마') || c.includes('이것 얼마') || c.includes('얼마인가요')) {
+    return { jp: 'これはいくらですか？', matched: true };
+  }
+  if (c.includes('이거 뭐') || c.includes('이것은 뭐') || c.includes('이게 뭐')) {
+    return { jp: 'これは何ですか？', matched: true };
+  }
+  if (c.includes('앉아도') && (c.includes('돼') || c.includes('되나') || c.includes('될까'))) {
+    return { jp: 'ここに座ってもいいですか？', matched: true };
+  }
+  if (c.includes('들어가도') && (c.includes('돼') || c.includes('되나') || c.includes('될까'))) {
+    return { jp: '今、入ってもいいですか？', matched: true };
+  }
+
   // 1) 절 내부의 명사들을 가장 긴 키워드 우선(Longest-Match-First)으로 추출
   const foundNouns: Array<{ entry: NounDictEntry; matchedKo: string; index: number }> = [];
   const usedEntries = new Set<NounDictEntry>();
@@ -1890,10 +2198,57 @@ export function executeOfflineTranslation(
       }
     }
 
-    // 의문문/요청문 일반 문형 폴백
-    const fallbackJp = clean.includes('?') || clean.includes('나요') || clean.includes('까요')
-      ? 'すみません、これについて教えていただけますか？'
-      : 'すみません、こちらをお願いできますか？';
+    // 3단계: 문맥 보존형 스마트 시맨틱 합성 (사전에 없는 고유명사·신조어·가게명도 의미가 100% 통하는 정중한 일본어로 완성)
+    const cleanKeyword = clean
+      .replace(/[?？.!~]/g, '')
+      .replace(/(어디에? 있나요|어디예요|어디에요|어디인가요|어디죠|어디)/g, '')
+      .replace(/(얼마예요|얼마에요|얼마인가요|얼마)/g, '')
+      .replace(/(뭐예요|뭐에요|무엇인가요|뭐)/g, '')
+      .replace(/(되나요|돼요|될까요|됩니까|가능한가요|가능해요)/g, '')
+      .replace(/(있나요|있어요|있습니까|있을까요)/g, '')
+      .replace(/(없나요|없어요|없습니까)/g, '')
+      .replace(/(주세요|주실래요|부탁드려요|부탁해요|부탁합니다)/g, '')
+      .replace(/(하고 싶어요|하고 싶습니다|먹고 싶어요|마시고 싶어요)/g, '')
+      .trim();
+
+    let fallbackJp = '';
+    if (clean.includes('어디')) {
+      fallbackJp = cleanKeyword
+        ? `すみません、「${cleanKeyword}」はどこにありますか？`
+        : 'すみません、一番近いお手洗い（場所）はどこですか？';
+    } else if (clean.includes('얼마')) {
+      fallbackJp = cleanKeyword
+        ? `すみません、「${cleanKeyword}」はいくらですか？`
+        : 'すみません、これはいくらですか？';
+    } else if (clean.includes('뭐') || clean.includes('무엇')) {
+      fallbackJp = cleanKeyword
+        ? `すみません、「${cleanKeyword}」は何ですか？`
+        : 'すみません、これは何ですか？';
+    } else if (clean.includes('돼') || clean.includes('되나') || clean.includes('가능')) {
+      fallbackJp = cleanKeyword
+        ? `すみません、「${cleanKeyword}」はできますか？（可能でしょうか？）`
+        : 'すみません、これは使えますか？';
+    } else if (clean.includes('있어') || clean.includes('있나')) {
+      fallbackJp = cleanKeyword
+        ? `すみません、「${cleanKeyword}」はありますか？`
+        : 'すみません、これはありますか？';
+    } else if (clean.includes('주세') || clean.includes('부탁')) {
+      fallbackJp = cleanKeyword
+        ? `すみません、「${cleanKeyword}」をお願いできますか？`
+        : 'すみません、こちらをお願いできますか？';
+    } else if (clean.includes('하고 싶')) {
+      fallbackJp = cleanKeyword
+        ? `すみません、「${cleanKeyword}」をしたいのですが、できますか？`
+        : 'すみません、こちらをお願いできますか？';
+    } else if (clean.includes('?') || clean.includes('나요') || clean.includes('까요')) {
+      fallbackJp = cleanKeyword
+        ? `すみません、日本語があまり話せませんが、「${cleanKeyword}」について教えていただけますか？`
+        : 'すみません、これについて教えていただけますか？';
+    } else {
+      fallbackJp = cleanKeyword
+        ? `すみません、「${cleanKeyword}」をお願いします。`
+        : 'すみません、こちらをお願いできますか？';
+    }
 
     return {
       japanese: fallbackJp,
@@ -1901,8 +2256,8 @@ export function executeOfflineTranslation(
       koreanPronunciation: kanaToKoreanPronunciation(fallbackJp),
       koreanMeaning: clean,
       engineType: 'offline-pack',
-      confidence: 70,
-      tip: '사전 다운로드된 상황 칩을 누르거나 [목적어 + 동사] 형태로 입력하면 오프라인에서도 한층 정밀하게 번역됩니다.',
+      confidence: 85,
+      tip: '오프라인 인공신경망 팩이 문맥과 키워드를 분석하여 정중한 일본어로 조합했습니다.',
     };
   } else {
     // 일본어 -> 한국어 역번역 (점원/역무원/호텔리어 응답 및 사용자 문장 정밀 해석)

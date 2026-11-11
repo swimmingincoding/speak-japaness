@@ -33,7 +33,7 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
     // Gemini API 키가 설정된 경우 실시간 AI로 맞춤 4턴 시나리오 생성 시도
     if (aiConfig.provider === 'gemini' && aiConfig.apiKey.trim()) {
       try {
-        const model = aiConfig.model || 'gemini-2.5-flash';
+        const model = aiConfig.model || 'gemini-3.8-flash';
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
           aiConfig.apiKey.trim()
         )}`;
