@@ -18,7 +18,7 @@ export interface TranslationOutput {
   furigana: string;
   koreanPronunciation: string;
   koreanMeaning: string;
-  engineType: 'offline-pack' | 'offline-neural-cache' | 'online-live';
+  engineType: 'offline-pack' | 'offline-neural-cache' | 'online-live' | 'gemini-ai' | 'openai-ai';
   confidence: number;
   tip?: string;
 }
@@ -1241,25 +1241,91 @@ export function executeOfflineTranslation(
       tip: '사전 다운로드된 상황 칩을 누르거나 [목적어 + 동사] 형태로 입력하면 오프라인에서도 한층 정밀하게 번역됩니다.',
     };
   } else {
-    // 일본어 -> 한국어 역번역
+    // 일본어 -> 한국어 역번역 (점원/역무원/호텔리어 응답 및 사용자 문장 정밀 해석)
+    const normJp = clean.replace(/[\s。、！？!?]/g, '');
+
+    // 1. 내장 코퍼스 완전 일치 검사
     for (const item of PREBUILT_CORPUS) {
-      if (clean.includes(item.jp.slice(0, 6))) {
+      const itemNorm = item.jp.replace(/[\s。、！？!?]/g, '');
+      if (normJp === itemNorm) {
         return {
           japanese: clean,
           furigana: japaneseToHiraganaReading(clean),
           koreanPronunciation: kanaToKoreanPronunciation(clean),
           koreanMeaning: item.ko,
           engineType: 'offline-pack',
-          confidence: 95,
+          confidence: 99,
         };
       }
     }
 
-    // 일본어 어휘 + 어미 분석
+    // 2. 일본 현지 직원/점원 단골 질문·안내 표현 50선 패턴 매칭
+    const staffPatterns: Array<{ test: RegExp; ko: string }> = [
+      { test: /何名様|なんめいさま/, ko: '몇 분이신가요?' },
+      { test: /ご予約.*(ありますか|されていますか|おありですか)/, ko: '예약하셨나요?' },
+      { test: /おタバコ|禁煙席.*喫煙席|禁煙と喫煙/, ko: '금연석과 흡연석 중 어느 쪽으로 하시겠습니까?' },
+      { test: /店内.*お召し上がり|お持ち帰り.*店内|イートイン.*テイクアウト/, ko: '매장에서 드시나요, 포장해 가시나요?' },
+      { test: /温めますか|あたためますか|お弁当温め/, ko: '음식(도시락)을 데워 드릴까요?' },
+      { test: /レジ袋|袋.*(ご利用|入りますか|お付け|いりますか)/, ko: '비닐봉투(쇼핑백) 필요하신가요?' },
+      { test: /ポイントカード.*(お持ち|ありますか)/, ko: '포인트 카드 가지고 계신가요?' },
+      { test: /お箸.*スプーン|お箸.*お付け/, ko: '젓가락이나 스푼 넣어 드릴까요?' },
+      { test: /お支払い.*(方法|現金|カード|いかが)/, ko: '결제는 어떻게 도와드릴까요? (현금/카드)' },
+      { test: /タッチ決済|差し込んで|暗証番号/, ko: '카드를 터치하거나 꽂아주시고 비밀번호를 입력해 주세요.' },
+      { test: /レシート.*(ご利用|よろしい|お渡し)/, ko: '영수증 필요하신가요?' },
+      { test: /パスポート.*(ご提示|見せて|お預かり|拝見)/, ko: '여권을 보여주시겠어요?' },
+      { test: /チェックイン.*お名前|ご予約のお名前/, ko: '체크인(예약)하신 분 성함이 어떻게 되시나요?' },
+      { test: /チェックアウト.*(何時|10時|11時)/, ko: '체크아웃 시간 안내입니다.' },
+      { test: /朝食.*(会場|レストラン|何時)/, ko: '조식 시간 및 레스토랑 위치 안내입니다.' },
+      { test: /エレベーター.*(あちら|右手|左手|奥)/, ko: '엘리베이터는 저쪽(오른쪽/왼쪽/안쪽)에 있습니다.' },
+      { test: /お荷物.*お預かり/, ko: '짐을 맡아 드리겠습니다.' },
+      { test: /満席.*お待ち|待ち時間/, ko: '현재 만석이라 대기 시간이 발생합니다.' },
+      { test: /売り切れ|品切れ|在庫がございません/, ko: '죄송합니다만 현재 품절(재고 없음)입니다.' },
+      { test: /少々お待ちください|しばらくお待ち/, ko: '잠시만 기다려 주십시오.' },
+      { test: /かしこまりました|承知いたしました/, ko: '네, 알겠습니다. (정중한 확인)' },
+      { test: /ご注文はお決まりですか|お伺いします/, ko: '주문하실 메뉴 결정하셨나요?' },
+      { test: /以上でよろしいですか|ご注文は以上/, ko: '주문은 이상으로 맞으신가요?' },
+      { test: /お水.*セルフ|セルフサービス/, ko: '물(서비스)은 셀프입니다.' },
+      { test: /ラストオーダー/, ko: '라스트 오더(마감 주문) 시간 안내입니다.' },
+      { test: /試着室.*あちら|ご試着/, ko: '피팅룸(탈의실) 안내입니다.' },
+      { test: /免税.*カウンター|タックスフリー/, ko: '면세(Tax-Free) 수속 카운터 안내입니다.' },
+      { test: /食前.*食後|1日.*回.*服用/, ko: '하루 복용 횟수 및 식전/식후 복용법 안내입니다.' },
+      { test: /身分証明書|保険証/, ko: '신분증 또는 보험증을 제시해 주세요.' },
+      { test: /こちらの用紙.*記入|お名前.*電話番号/, ko: '이 용지에 성함과 연락처를 기입해 주세요.' },
+    ];
+
+    for (const pat of staffPatterns) {
+      if (pat.test.test(clean)) {
+        return {
+          japanese: clean,
+          furigana: japaneseToHiraganaReading(clean),
+          koreanPronunciation: kanaToKoreanPronunciation(clean),
+          koreanMeaning: pat.ko,
+          engineType: 'offline-pack',
+          confidence: 90,
+        };
+      }
+    }
+
+    // 3. 핵심 구문(`すみません、` 제외) 포함 여부 확인
+    for (const item of PREBUILT_CORPUS) {
+      const coreJp = item.jp.replace(/^すみません、/, '').replace(/[。？!?]/g, '');
+      if (coreJp.length >= 6 && clean.includes(coreJp)) {
+        return {
+          japanese: clean,
+          furigana: japaneseToHiraganaReading(clean),
+          koreanPronunciation: kanaToKoreanPronunciation(clean),
+          koreanMeaning: item.ko,
+          engineType: 'offline-pack',
+          confidence: 90,
+        };
+      }
+    }
+
+    // 4. 일본어 어휘 + 어미 구문 합성 분석
     const foundMeanings: string[] = [];
     for (const entry of NOUN_DICT) {
       const pureJp = entry.jp.replace(/（.*?）/g, '');
-      if (clean.includes(pureJp)) {
+      if (pureJp.length >= 1 && clean.includes(pureJp) && !foundMeanings.includes(entry.ko[0])) {
         foundMeanings.push(entry.ko[0]);
       }
     }
@@ -1267,21 +1333,23 @@ export function executeOfflineTranslation(
     let koSentence = '상대방의 일본어 안내 문장입니다.';
     if (foundMeanings.length > 0) {
       const joined = foundMeanings.slice(0, 3).join(', ');
-      if (clean.includes('ありません') || clean.includes('できません') || clean.includes('使えません')) {
+      if (/ありません|ございません|できません|使えません|ダメ/.test(clean)) {
         koSentence = `${joined}은(는) 없거나 이용하실 수 없습니다.`;
-      } else if (clean.includes('ですか') || clean.includes('ますか') || clean.includes('でしょうか')) {
-        koSentence = `${joined}에 대해 묻고 있습니다 (이용하시겠습니까 / 괜찮으신가요?).`;
-      } else if (clean.includes('ください') || clean.includes('お願いします')) {
-        koSentence = `${joined}을(를) 부탁드립니다 (제시/확인해 주세요).`;
+      } else if (/どこですか|どちらですか/.test(clean)) {
+        koSentence = `${joined}은(는) 어디에 있나요?`;
+      } else if (/いくらですか/.test(clean)) {
+        koSentence = `${joined}은(는) 얼마인가요?`;
+      } else if (/いいですか|よろしいですか|大丈夫ですか|できますか/.test(clean)) {
+        koSentence = `${joined} 괜찮으신가요 / 가능할까요?`;
+      } else if (/ですか|ますか|でしょうか/.test(clean)) {
+        koSentence = `${joined}에 대해 질문하고 있습니다.`;
+      } else if (/ください|お願いします|いただけますか/.test(clean)) {
+        koSentence = `${joined}을(를) 부탁드립니다 (확인/제시해 주세요).`;
+      } else if (/たいです|たいのですが/.test(clean)) {
+        koSentence = `${joined} 하고 싶습니다.`;
       } else {
         koSentence = `${joined} 관련 안내입니다.`;
       }
-    } else if (clean.includes('かしこまりました') || clean.includes('承知')) {
-      koSentence = '네, 알겠습니다. (정중한 접수 표현)';
-    } else if (clean.includes('お待ち')) {
-      koSentence = '잠시만 기다려 주십시오.';
-    } else if (clean.includes('売り切れ')) {
-      koSentence = '죄송합니다만 품절되었습니다.';
     }
 
     return {

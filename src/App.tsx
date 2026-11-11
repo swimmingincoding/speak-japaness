@@ -272,6 +272,8 @@ export const App: React.FC = () => {
                 <OfflineTranslator
                   ttsSpeed={displaySettings.ttsSpeed}
                   showFurigana={displaySettings.showFurigana}
+                  aiConfig={aiConfig}
+                  onOpenSettings={() => setIsSettingsOpen(true)}
                   onSaveExpression={handleToggleSave}
                 />
               )}

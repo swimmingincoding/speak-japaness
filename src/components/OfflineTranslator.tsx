@@ -18,7 +18,9 @@ import {
   romajiToKoreanPronunciation,
   romajiToHiragana,
   registerDynamicKanjiReadings,
+  registerDirectKanjiReadings,
 } from '../utils/japanesePhonetics';
+import { translateWithAI } from '../utils/aiService';
 import { speakJapanese, startJapaneseSpeechRecognition } from '../utils/speech';
 import { FuriganaText } from './FuriganaText';
 import {
@@ -36,18 +38,23 @@ import {
   CornerDownLeft,
   BookmarkPlus,
   Check,
+  Cpu,
 } from 'lucide-react';
-import { SavedExpression } from '../types/conversation';
+import { AIConfig, SavedExpression } from '../types/conversation';
 
 interface OfflineTranslatorProps {
   ttsSpeed: number;
   showFurigana?: boolean;
+  aiConfig?: AIConfig;
+  onOpenSettings?: () => void;
   onSaveExpression?: (expr: SavedExpression) => void;
 }
 
 export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   ttsSpeed,
   showFurigana = true,
+  aiConfig,
+  onOpenSettings,
   onSaveExpression,
 }) => {
   const [isOnline, setIsOnline] = useState<boolean>(
@@ -86,6 +93,10 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   }, []);
 
   const effectiveOffline = !isOnline || forceOfflineMode;
+  const hasAiKey = Boolean(aiConfig?.apiKey?.trim());
+  const isGeminiConfigured =
+    hasAiKey &&
+    (aiConfig?.provider === 'gemini' || aiConfig?.apiKey?.trim().startsWith('AIza'));
 
   const handleTranslate = async (textOverride?: string) => {
     const text = (textOverride ?? inputText).trim();
@@ -95,7 +106,44 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     const offlineOut = executeOfflineTranslation(text, direction);
     setTranslationResult(offlineOut);
 
-    // 2. 온라인 모드일 때: 코퍼스 100% 완전 일치(confidence >= 99)나 이미 캐시된 신경망 번역이 아니면 실시간 다중 엔드포인트 신경망 번역 수행!
+    // 2. 온라인 모드 + Gemini/OpenAI API Key가 설정된 경우:
+    //    이미 AI로 번역해 캐싱된 결과가 아니라면, 최우선으로 Gemini / OpenAI LLM을 호출하여 원어민 수준의 자연스러운 번역 + 문맥 맞춤 후리가나 생성!
+    if (!effectiveOffline && hasAiKey && aiConfig) {
+      setIsTranslating(true);
+      try {
+        const aiRes = await translateWithAI(text, direction, aiConfig);
+        if (aiRes && aiRes.japanese) {
+          if (aiRes.kanjiReadings?.length) {
+            registerDirectKanjiReadings(aiRes.kanjiReadings);
+          }
+          const finalJp = aiRes.japanese.trim();
+          const finalFuri = aiRes.furigana?.trim() || japaneseToHiraganaReading(finalJp);
+          const finalKorPron =
+            aiRes.koreanPronunciation?.trim() || kanaToKoreanPronunciation(finalJp);
+
+          const aiOut: TranslationOutput = {
+            japanese: finalJp,
+            furigana: finalFuri,
+            koreanPronunciation: finalKorPron,
+            koreanMeaning:
+              direction === 'ko-to-jp' ? text : aiRes.koreanMeaning || text,
+            engineType: aiRes.providerUsed,
+            confidence: 100,
+            tip: aiRes.tip,
+          };
+
+          setTranslationResult(aiOut);
+          saveNeuralCache(text, direction, aiOut);
+          setPackStats(getOfflinePackStats());
+          setIsTranslating(false);
+          return;
+        }
+      } catch {
+        // AI 호출 실패 시 아래 일반 신경망 번역 엔드포인트로 자동 폴백
+      }
+    }
+
+    // 3. 온라인 모드(API 키 미설정 또는 폴백): 코퍼스 100% 완전 일치(confidence >= 99)나 이미 캐시된 신경망 번역이 아니면 실시간 다중 엔드포인트 신경망 번역 수행!
     if (
       !effectiveOffline &&
       offlineOut.confidence < 99 &&
@@ -357,10 +405,23 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
               <>
                 <WifiOff className="w-3 h-3 text-amber-500" /> 데이터 0% 오프라인 번역
               </>
+            ) : hasAiKey ? (
+              <button
+                onClick={onOpenSettings}
+                className="flex items-center gap-1 text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-extrabold cursor-pointer"
+                title="AI 엔진 설정 열기"
+              >
+                <Cpu className="w-3 h-3" />
+                {isGeminiConfigured ? 'Gemini AI 번역 활성' : 'OpenAI GPT 번역 활성'}
+              </button>
             ) : (
-              <>
-                <Wifi className="w-3 h-3 text-emerald-500" /> 실시간 하이브리드
-              </>
+              <button
+                onClick={onOpenSettings}
+                className="flex items-center gap-1 hover:text-indigo-600 cursor-pointer"
+                title="우측 상단 설정에서 Gemini API 키를 등록하면 LLM 통번역이 활성화됩니다"
+              >
+                <Wifi className="w-3 h-3 text-emerald-500" /> 실시간 신경망 하이브리드
+              </button>
             )}
           </span>
         </div>
@@ -432,14 +493,27 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
         {translationResult && (
           <div className="p-5 bg-indigo-50/50 border-t border-indigo-100/80 space-y-3.5 animate-fadeIn">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+              <span
+                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                  translationResult.engineType === 'gemini-ai' ||
+                  translationResult.engineType === 'openai-ai'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-indigo-100 text-indigo-700'
+                }`}
+              >
                 {isTranslating
-                  ? '번역 중...'
+                  ? hasAiKey
+                    ? '✨ Gemini AI 문맥 번역 중...'
+                    : '번역 중...'
+                  : translationResult.engineType === 'gemini-ai'
+                  ? '✨ Gemini AI 실시간 번역 + 오프라인 저장됨'
+                  : translationResult.engineType === 'openai-ai'
+                  ? '✨ OpenAI GPT 실시간 번역 + 오프라인 저장됨'
                   : translationResult.engineType === 'offline-pack'
                   ? '📦 오프라인 언어팩 엔진'
                   : translationResult.engineType === 'offline-neural-cache'
                   ? '💾 오프라인 캐시 메모리'
-                  : '⚡ 실시간 번역 + 오프라인 저장됨'}
+                  : '⚡ 실시간 신경망 번역 + 오프라인 저장됨'}
               </span>
 
               <div className="flex items-center gap-1.5">

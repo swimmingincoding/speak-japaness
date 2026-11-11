@@ -1793,6 +1793,33 @@ export function romajiToHiragana(romaji: string): string {
   return out.join('');
 }
 
+export function registerDirectKanjiReadings(
+  pairs: Array<{ kanji: string; reading: string }>
+): void {
+  if (!Array.isArray(pairs) || pairs.length === 0) return;
+  let updated = false;
+  for (const item of pairs) {
+    const k = item?.kanji?.trim();
+    const r = katakanaToHiragana(item?.reading?.trim() || '');
+    if (k && r && containsKanji(k)) {
+      DYNAMIC_RUBY_MAP.set(k, r);
+      updated = true;
+    }
+  }
+  if (updated) {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(
+          DYNAMIC_RUBY_STORAGE_KEY,
+          JSON.stringify(Array.from(DYNAMIC_RUBY_MAP.entries()))
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }
+}
+
 // 일본어 원문(한자+가나)과 로마자(또는 히라가나) 전체 발음을 가나 앵커(Kana-Anchor)로 정렬하여 사전에 없는 모든 한자의 후리가나를 자동 추출·등록
 export function registerDynamicKanjiReadings(
   jpText: string,

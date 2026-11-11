@@ -127,16 +127,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
 
-        {/* 3. 실전 AI 프리토킹 엔진 설정 */}
+        {/* 3. 실전 AI 프리토킹 & 실시간 AI 번역 엔진 설정 */}
         <div className="space-y-2.5">
           <div className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-600">
-            <Cpu className="w-4 h-4" /> AI 프리토킹 엔진
+            <Cpu className="w-4 h-4" /> AI 프리토킹 & 실시간 번역 엔진 (Gemini / GPT)
           </div>
 
           <div className="grid grid-cols-3 gap-2">
             {(
               [
-                { id: 'simulation', label: '스마트 시뮬레이션 (기본)' },
+                { id: 'simulation', label: '내장 하이브리드 (기본)' },
                 { id: 'gemini', label: 'Google Gemini' },
                 { id: 'openai', label: 'OpenAI GPT' },
               ] as const
@@ -155,21 +155,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             ))}
           </div>
 
-          {aiConfig.provider !== 'simulation' && (
+          {(aiConfig.provider !== 'simulation' || aiConfig.apiKey.trim() !== '') && (
             <div className="space-y-2.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {aiConfig.provider === 'gemini' ? 'Gemini API Key' : 'OpenAI API Key'}
+                  {aiConfig.provider === 'openai' ? 'OpenAI API Key' : 'Gemini API Key'}
                 </label>
                 <input
                   type="password"
                   value={aiConfig.apiKey}
-                  onChange={(e) => onUpdateAI({ ...aiConfig, apiKey: e.target.value })}
+                  onChange={(e) => {
+                    const nextKey = e.target.value;
+                    const nextProvider =
+                      nextKey.trim().startsWith('AIza')
+                        ? 'gemini'
+                        : nextKey.trim().startsWith('sk-')
+                        ? 'openai'
+                        : aiConfig.provider === 'simulation' && nextKey.trim()
+                        ? 'gemini'
+                        : aiConfig.provider;
+                    onUpdateAI({ ...aiConfig, provider: nextProvider, apiKey: nextKey });
+                  }}
                   placeholder={
-                    aiConfig.provider === 'gemini' ? 'AIzaSy...' : 'sk-proj-...'
+                    aiConfig.provider === 'openai' ? 'sk-proj-...' : 'AIzaSy...'
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                 />
+                <p className="text-[11px] text-emerald-700 font-semibold mt-1.5">
+                  ✨ API 키 입력 시 [실전 AI 프리토킹], [나만의 상황 생성], [실시간 번역·SOS] 모두 해당 LLM이 최우선 작동합니다.
+                </p>
               </div>
             </div>
           )}
