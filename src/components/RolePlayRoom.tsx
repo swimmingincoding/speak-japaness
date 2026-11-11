@@ -42,6 +42,9 @@ import {
   ChevronDown,
   ChevronUp,
   Play,
+  Volume1,
+  Check,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 interface RolePlayRoomProps {
@@ -82,6 +85,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
   } | null>(null);
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState<boolean>(false);
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState<boolean>(false);
 
   const [freeMessages, setFreeMessages] = useState<FreeTalkMessage[]>([]);
   const [freeInput, setFreeInput] = useState<string>('');
@@ -165,7 +169,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
     if (turn.speaker !== userRole && displaySettings.autoPlayPartnerAudio) {
       const timer = setTimeout(() => {
         speakJapanese(turn.japanese, displaySettings.ttsSpeed);
-      }, 250);
+      }, 300);
       return () => clearTimeout(timer);
     }
   }, [currentTurnIndex, mode, userRole, scenario]);
@@ -353,171 +357,221 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
     .find((m) => m.sender === 'partner');
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#F4F6FA]">
-      {/* 1. 상단 스티키 컨트롤 헤더 (화이트 글래스) */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 px-4 py-3 space-y-2.5 shadow-2xs">
-        <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-col min-h-screen bg-[#F8FAFC]">
+      {/* 1. 상단 모던 스티키 헤더 */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 shadow-2xs">
+        {/* 네비게이션 & 제목 바 */}
+        <div className="px-4 py-2.5 flex items-center justify-between gap-3">
           <button
             onClick={() => {
               stopSpeaking();
               onBack();
             }}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer shrink-0"
+            title="뒤로가기"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
 
-          <div className="text-center flex-1 truncate px-1">
-            <h2 className="text-sm font-extrabold text-slate-900 truncate">
+          <div className="text-center flex-1 min-w-0">
+            <h2 className="text-sm sm:text-base font-black text-slate-900 truncate">
               {scenario.title}
             </h2>
             <p className="text-[11px] text-slate-400 font-medium truncate">
-              {scenario.placeName}
+              {scenario.placeName} · {scenario.turns.length}턴
             </p>
           </div>
 
-          <button
-            onClick={handlePlayAllDialogue}
-            className="flex items-center gap-1 text-[11px] font-extrabold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-2 px-3 rounded-xl cursor-pointer shrink-0"
-          >
-            <Play className="w-3 h-3 fill-current" /> 전체듣기
-          </button>
-        </div>
-
-        {/* 역할 스왑 세그먼트 컨트롤 (손님 A ↔ 점원 B) */}
-        <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-100">
-          <button
-            onClick={() => setUserRole('customer')}
-            className={`py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
-              userRole === 'customer'
-                ? 'bg-white text-indigo-600 shadow-sm'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>손님(A) 역할</span>
-            {completedRoles.customer && (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-            )}
-          </button>
-          <button
-            onClick={() => setUserRole('staff')}
-            className={`py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
-              userRole === 'staff'
-                ? 'bg-white text-amber-600 shadow-sm'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Store className="w-3.5 h-3.5" />
-            <span>점원(B) 역할</span>
-            {completedRoles.staff && (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-            )}
-          </button>
-        </div>
-
-        {/* 학습 모드 스위치 & 표시 토글 칩 */}
-        <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
-              onClick={() => setMode('guided')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer ${
-                mode === 'guided'
-                  ? 'bg-indigo-600 text-white shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+              onClick={handlePlayAllDialogue}
+              className="flex items-center gap-1 text-[11px] font-extrabold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-1.5 px-2.5 rounded-xl transition cursor-pointer"
+              title="전체 대사 연속 듣기"
             >
-              <BookOpen className="w-3 h-3" /> 가이드 대본
+              <Play className="w-3 h-3 fill-current" />
+              <span className="hidden sm:inline">전체듣기</span>
             </button>
             <button
-              onClick={() => setMode('freetalk')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer ${
-                mode === 'freetalk'
-                  ? 'bg-emerald-600 text-white shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-800'
+              onClick={() => setShowSettingsDrawer((prev) => !prev)}
+              className={`w-8 h-8 rounded-xl flex items-center justify-center transition cursor-pointer ${
+                showSettingsDrawer
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
+              title="표시 및 음성 설정"
             >
-              <MessageSquare className="w-3 h-3" /> AI 프리토킹
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() =>
-                onUpdateDisplay({
-                  ...displaySettings,
-                  showFurigana: !displaySettings.showFurigana,
-                })
-              }
-              className={`px-2.5 py-1 rounded-lg text-[10.5px] font-extrabold border cursor-pointer ${
-                displaySettings.showFurigana
-                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                  : 'bg-white border-slate-200 text-slate-400'
-              }`}
-            >
-              후리가나
-            </button>
-            <button
-              onClick={() =>
-                onUpdateDisplay({
-                  ...displaySettings,
-                  showKoreanPronunciation: !displaySettings.showKoreanPronunciation,
-                })
-              }
-              className={`px-2.5 py-1 rounded-lg text-[10.5px] font-extrabold border cursor-pointer ${
-                displaySettings.showKoreanPronunciation
-                  ? 'bg-amber-50 border-amber-200 text-amber-700'
-                  : 'bg-white border-slate-200 text-slate-400'
-              }`}
-            >
-              한글발음
-            </button>
-            <button
-              onClick={() =>
-                onUpdateDisplay({
-                  ...displaySettings,
-                  showTranslation: !displaySettings.showTranslation,
-                })
-              }
-              className={`px-2.5 py-1 rounded-lg text-[10.5px] font-extrabold border cursor-pointer ${
-                displaySettings.showTranslation
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                  : 'bg-white border-slate-200 text-slate-400'
-              }`}
-            >
-              한국어뜻
-            </button>
-            <button
-              onClick={() =>
-                onUpdateDisplay({
-                  ...displaySettings,
-                  ttsSpeed: displaySettings.ttsSpeed < 0.9 ? 1.0 : 0.78,
-                })
-              }
-              className="px-2 py-1 rounded-lg text-[10.5px] font-extrabold bg-slate-100 text-slate-700 cursor-pointer"
-            >
-              {displaySettings.ttsSpeed < 0.9 ? '🐢0.78x' : '⚡1.0x'}
+              <SlidersHorizontal className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
+
+        {/* 역할 스위처 & 모드 토글 (모던 세그먼트 바) */}
+        <div className="px-4 pb-2.5 pt-0.5 space-y-2">
+          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-100/90 text-xs font-bold">
+            <button
+              onClick={() => setUserRole('customer')}
+              className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                userRole === 'customer'
+                  ? 'bg-white text-indigo-600 shadow-sm font-extrabold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>손님(A) 역할</span>
+              {completedRoles.customer && (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              )}
+            </button>
+            <button
+              onClick={() => setUserRole('staff')}
+              className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                userRole === 'staff'
+                  ? 'bg-white text-amber-600 shadow-sm font-extrabold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Store className="w-3.5 h-3.5" />
+              <span>점원(B) 역할</span>
+              {completedRoles.staff && (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              )}
+            </button>
+          </div>
+
+          {/* 서브 컨트롤: 모드 탭 + 퀵 디스플레이 칩 */}
+          <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar py-0.5">
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl shrink-0">
+              <button
+                onClick={() => setMode('guided')}
+                className={`px-3 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer ${
+                  mode === 'guided'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <BookOpen className="w-3 h-3" /> 가이드 대본
+              </button>
+              <button
+                onClick={() => setMode('freetalk')}
+                className={`px-3 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer ${
+                  mode === 'freetalk'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <MessageSquare className="w-3 h-3" /> AI 프리토킹
+              </button>
+            </div>
+
+            {/* 빠른 토글 알약 (후리가나 / 한글발음 / 한국어뜻 / 속도) */}
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() =>
+                  onUpdateDisplay({
+                    ...displaySettings,
+                    showFurigana: !displaySettings.showFurigana,
+                  })
+                }
+                className={`px-2 py-1 rounded-lg text-[10.5px] font-extrabold transition cursor-pointer ${
+                  displaySettings.showFurigana
+                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                    : 'bg-white text-slate-400 border border-slate-200'
+                }`}
+                title="한자 위 후리가나(요미가나) 표시 토글"
+              >
+                후리가나
+              </button>
+              <button
+                onClick={() =>
+                  onUpdateDisplay({
+                    ...displaySettings,
+                    showKoreanPronunciation: !displaySettings.showKoreanPronunciation,
+                  })
+                }
+                className={`px-2 py-1 rounded-lg text-[10.5px] font-extrabold transition cursor-pointer ${
+                  displaySettings.showKoreanPronunciation
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                    : 'bg-white text-slate-400 border border-slate-200'
+                }`}
+                title="한글 발음 표시 토글"
+              >
+                발음
+              </button>
+              <button
+                onClick={() =>
+                  onUpdateDisplay({
+                    ...displaySettings,
+                    showTranslation: !displaySettings.showTranslation,
+                  })
+                }
+                className={`px-2 py-1 rounded-lg text-[10.5px] font-extrabold transition cursor-pointer ${
+                  displaySettings.showTranslation
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-white text-slate-400 border border-slate-200'
+                }`}
+                title="한국어 번역 해석 표시 토글"
+              >
+                번역
+              </button>
+              <button
+                onClick={() =>
+                  onUpdateDisplay({
+                    ...displaySettings,
+                    ttsSpeed: displaySettings.ttsSpeed < 0.9 ? 1.0 : 0.78,
+                  })
+                }
+                className="px-2 py-1 rounded-lg text-[10.5px] font-extrabold bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                title="음성 읽기 속도"
+              >
+                {displaySettings.ttsSpeed < 0.9 ? '🐢 0.8x' : '⚡ 1.0x'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 상세 옵션 드로어 (설정 버튼 클릭 시 펼쳐짐) */}
+        {showSettingsDrawer && (
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-700 flex flex-wrap items-center justify-between gap-3 animate-fadeIn">
+            <label className="flex items-center gap-2 cursor-pointer font-medium">
+              <input
+                type="checkbox"
+                checked={displaySettings.autoPlayPartnerAudio}
+                onChange={(e) =>
+                  onUpdateDisplay({
+                    ...displaySettings,
+                    autoPlayPartnerAudio: e.target.checked,
+                  })
+                }
+                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              />
+              <span>상대방 대사 시 음성 자동 재생</span>
+            </label>
+
+            <span className="text-[11px] text-slate-400">
+              카드를 탭하여 상세 뉘앙스와 단어를 볼 수 있습니다.
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* 본문 영역 */}
-      <div className="px-4 pt-3 pb-32 flex-1 space-y-4">
-        {/* 상황 요약 카드 */}
-        <div className="rounded-2xl bg-white border border-slate-200/80 p-3.5 text-xs text-slate-600 shadow-2xs space-y-1.5">
-          <div>
-            <strong className="text-slate-900">📍 상황:</strong> {scenario.situationBrief}
+      {/* 2. 메인 대화 영역 */}
+      <div className="flex-1 px-4 py-4 space-y-4 max-w-3xl mx-auto w-full pb-64">
+        {/* 미니 상황 안내 배너 */}
+        <div className="rounded-2xl bg-white border border-slate-200/80 p-3.5 text-xs text-slate-600 shadow-2xs space-y-1">
+          <div className="flex items-center gap-1.5 font-bold text-slate-900">
+            <span>📍 상황 요약:</span>
+            <span className="font-medium text-slate-700">{scenario.situationBrief}</span>
           </div>
           {userRole === 'staff' && (
-            <div className="text-amber-700 font-semibold bg-amber-50 px-3 py-2 rounded-xl">
-              🧑‍🍳 지금은 <strong>점원(B) 역할</strong>입니다! 일본인 직원의 접객 경어를 직접 말하며 상대방의 패턴을 익혀보세요.
+            <div className="text-amber-800 font-bold bg-amber-50/80 px-2.5 py-1.5 rounded-xl border border-amber-200/50 flex items-center gap-1.5 mt-1">
+              <span>🧑‍🍳</span>
+              <span>지금은 점원(B) 차례입니다! 고객을 대하는 정중한 일본어 접객 표현을 익혀보세요.</span>
             </div>
           )}
         </div>
 
         {/* ======================================================== */}
-        {/* 가이드 스크립트 모드 */}
+        {/* 모드 1: 가이드 대본 모드 */}
         {/* ======================================================== */}
         {mode === 'guided' && (
           <div className="space-y-4">
@@ -535,6 +589,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                       isMyRole ? 'items-end' : 'items-start'
                     } animate-fadeIn`}
                   >
+                    {/* 발화자 태그 */}
                     <div className="flex items-center gap-1.5 mb-1 px-1">
                       <span
                         className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${
@@ -544,57 +599,88 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                         }`}
                       >
                         {turn.speaker === 'customer' ? '🙋‍♂️ 손님(A)' : '🧑‍🍳 점원(B)'}
-                        {isMyRole ? ' · 나의 대사' : ''}
+                        {isMyRole ? ' · 나' : ' · 파트너'}
                       </span>
                       <span className="text-[10px] font-bold text-slate-400">
                         {idx + 1}/{scenario.turns.length}
                       </span>
                     </div>
 
+                    {/* 대화 말풍선 */}
                     <div
-                      className={`w-full max-w-[94%] rounded-[24px] p-4 border transition shadow-sm ${
+                      className={`w-full max-w-[92%] sm:max-w-[85%] rounded-[24px] p-4.5 border transition shadow-xs ${
                         isMyRole
                           ? isCurrentActive
-                            ? 'bg-indigo-50/70 border-2 border-indigo-500'
-                            : 'bg-white border-indigo-200'
+                            ? 'bg-indigo-50/90 border-2 border-indigo-500 rounded-tr-sm ring-4 ring-indigo-500/10'
+                            : 'bg-indigo-50/40 border-indigo-200 rounded-tr-sm'
                           : isCurrentActive
-                          ? 'bg-amber-50/60 border-2 border-amber-400'
-                          : 'bg-white border-slate-200/90'
+                          ? 'bg-amber-50/80 border-2 border-amber-400 rounded-tl-sm ring-4 ring-amber-400/10'
+                          : 'bg-white border-slate-200/90 rounded-tl-sm'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2.5">
-                        <div className="space-y-1.5 flex-1">
-                          <div>
+                      {/* 일본어 원문 + Furigana */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
                             <FuriganaText
                               text={turn.japanese}
                               showFurigana={displaySettings.showFurigana}
-                              className="text-lg font-black text-slate-900"
-                              rtClassName="text-[10.5px] font-bold text-indigo-600"
+                              className="text-lg sm:text-xl font-black text-slate-900 leading-relaxed"
+                              rtClassName="text-[11px] font-bold text-indigo-600"
                             />
                           </div>
-
-                          {displaySettings.showKoreanPronunciation && (
-                            <div className="text-xs font-extrabold text-indigo-600 leading-relaxed">
-                              [{turn.koreanPronunciation}]
-                            </div>
-                          )}
-
-                          {displaySettings.showTranslation && (
-                            <div className="text-sm font-bold text-slate-700 pt-0.5">
-                              {turn.koreanTranslation}
-                            </div>
-                          )}
                         </div>
 
-                        <div className="flex flex-col items-center gap-1.5 shrink-0">
+                        {/* 한글 발음 */}
+                        {displaySettings.showKoreanPronunciation && (
+                          <div className="text-xs sm:text-sm font-extrabold text-indigo-600">
+                            [{turn.koreanPronunciation}]
+                          </div>
+                        )}
+
+                        {/* 한국어 번역 */}
+                        {displaySettings.showTranslation && (
+                          <div className="text-sm font-semibold text-slate-700 pt-0.5">
+                            {turn.koreanTranslation}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 말풍선 하단 마이크로 툴바 */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-between gap-2">
+                        {/* 원어민 뉘앙스 & 단어 토글 버튼 */}
+                        <button
+                          onClick={() =>
+                            setExpandedTurnId(isExpanded ? null : turn.id)
+                          }
+                          className="text-xs font-bold text-slate-600 hover:text-indigo-600 flex items-center gap-1.5 cursor-pointer py-1 px-2 rounded-lg hover:bg-black/5 transition"
+                        >
+                          <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                          <span>해설 & 단어 ({turn.vocab.length})</span>
+                          {isExpanded ? (
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+
+                        {/* 음성 및 북마크 액션 */}
+                        <div className="flex items-center gap-1 shrink-0">
                           <button
                             onClick={() =>
                               speakJapanese(turn.japanese, displaySettings.ttsSpeed)
                             }
-                            className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs transition cursor-pointer"
-                            title="원어민 발음 듣기"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-700 transition cursor-pointer"
+                            title="음성 듣기"
                           >
                             <Volume2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => speakJapanese(turn.japanese, 0.72)}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer text-[11px] font-bold"
+                            title="천천히 듣기 (0.72x)"
+                          >
+                            🐢
                           </button>
                           <button
                             onClick={() =>
@@ -611,12 +697,12 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                                 savedAt: new Date().toISOString(),
                               })
                             }
-                            className={`p-2 rounded-xl transition cursor-pointer ${
+                            className={`p-1.5 rounded-lg transition cursor-pointer ${
                               isSaved
                                 ? 'bg-rose-50 text-rose-600 border border-rose-200'
                                 : 'bg-slate-100 text-slate-400 hover:text-slate-700'
                             }`}
-                            title="단어장에 저장"
+                            title="단어장에 보관"
                           >
                             {isSaved ? (
                               <BookmarkCheck className="w-4 h-4" />
@@ -627,39 +713,16 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                         </div>
                       </div>
 
-                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
-                        <button
-                          onClick={() =>
-                            setExpandedTurnId(isExpanded ? null : turn.id)
-                          }
-                          className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
-                        >
-                          <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-                          <span>원어민 뉘앙스 & 단어 풀이 ({turn.vocab.length})</span>
-                          {isExpanded ? (
-                            <ChevronUp className="w-3.5 h-3.5" />
-                          ) : (
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-
-                        <button
-                          onClick={() => speakJapanese(turn.japanese, 0.72)}
-                          className="text-[11px] text-slate-500 hover:text-indigo-600 font-bold cursor-pointer"
-                        >
-                          🐢 천천히 듣기
-                        </button>
-                      </div>
-
+                      {/* 확장 영역: 실전 팁 & 접객어 포인트 & 단어 사전 */}
                       {(isExpanded || isCurrentActive) && (
-                        <div className="mt-2.5 space-y-2 bg-slate-50 rounded-2xl p-3.5 border border-slate-200/60 text-xs">
+                        <div className="mt-3 space-y-2.5 bg-slate-50/90 rounded-2xl p-3.5 border border-slate-200 text-xs animate-fadeIn">
                           <div className="text-slate-700 leading-relaxed">
                             <span className="font-extrabold text-indigo-600">💡 실전 팁: </span>
                             {turn.realLifeTip}
                           </div>
 
                           {turn.staffKeigoPoint && (
-                            <div className="text-slate-700 leading-relaxed pt-1.5 border-t border-slate-200/70">
+                            <div className="text-slate-700 leading-relaxed pt-2 border-t border-slate-200">
                               <span className="font-extrabold text-amber-700">
                                 🛎️ 점원 접객어 비밀:{' '}
                               </span>
@@ -668,16 +731,19 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                           )}
 
                           {turn.vocab.length > 0 && (
-                            <div className="pt-1.5 border-t border-slate-200/70">
+                            <div className="pt-2 border-t border-slate-200">
+                              <div className="text-[11px] font-bold text-slate-500 mb-1.5">
+                                📚 핵심 단어장:
+                              </div>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                 {turn.vocab.map((v, vIdx) => (
                                   <div
                                     key={vIdx}
                                     onClick={() => speakJapanese(v.word, 0.9)}
-                                    className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 cursor-pointer"
+                                    className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 transition cursor-pointer"
                                   >
                                     <div>
-                                      <span className="font-extrabold text-slate-900">
+                                      <span className="font-black text-slate-900">
                                         {v.word}
                                       </span>{' '}
                                       <span className="text-[11px] font-bold text-indigo-600">
@@ -687,7 +753,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                                         {v.meaning}
                                       </div>
                                     </div>
-                                    <Volume2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <Volume1 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                   </div>
                                 ))}
                               </div>
@@ -701,181 +767,23 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
               })}
             </div>
 
-            {/* 현재 진행 액션 카드 */}
-            {!isFinished && currentTurn && (
-              <div className="rounded-[26px] bg-white border-2 border-indigo-500/30 p-5 shadow-lg space-y-3.5">
-                {currentTurn.speaker !== userRole ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg">
-                        🎧 상대방({currentTurn.speaker === 'staff' ? '점원' : '손님'})의 말을 듣고 이해해보세요
-                      </span>
-                      <button
-                        onClick={() =>
-                          speakJapanese(currentTurn.japanese, displaySettings.ttsSpeed)
-                        }
-                        className="text-xs font-extrabold text-indigo-600 flex items-center gap-1 cursor-pointer"
-                      >
-                        <Volume2 className="w-4 h-4" /> 다시 듣기
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => setCurrentTurnIndex((prev) => prev + 1)}
-                      className="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm shadow-md shadow-indigo-600/20 active:scale-[0.99] transition cursor-pointer"
-                    >
-                      이해 완료! 내 대답 차례로 넘어가기 →
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
-                        🎙️ 내가 말할 차례 ({userRole === 'customer' ? '손님 A' : '점원 B'})
-                      </span>
-                      <button
-                        onClick={() =>
-                          speakJapanese(
-                            getActiveTargetPhrase(currentTurn).japanese,
-                            displaySettings.ttsSpeed
-                          )
-                        }
-                        className="text-xs font-extrabold text-indigo-600 flex items-center gap-1 cursor-pointer"
-                      >
-                        <Volume2 className="w-4 h-4" /> 발음 먼저 듣기
-                      </button>
-                    </div>
-
-                    {currentTurn.alternatives && currentTurn.alternatives.length > 0 && (
-                      <div className="space-y-1.5">
-                        <div className="text-[11px] font-bold text-slate-500">
-                          다른 스타일로 대답해보기:
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <button
-                            onClick={() => setSelectedAltIndex(-1)}
-                            className={`text-left p-3 rounded-xl border text-xs transition cursor-pointer ${
-                              selectedAltIndex === -1
-                                ? 'bg-indigo-50/80 border-indigo-500 text-slate-900'
-                                : 'bg-slate-50 border-slate-200 text-slate-600'
-                            }`}
-                          >
-                            <div className="font-extrabold">기본: {currentTurn.japanese}</div>
-                            <div className="text-[11px] text-indigo-600 font-bold">
-                              [{currentTurn.koreanPronunciation}]
-                            </div>
-                          </button>
-                          {currentTurn.alternatives.map((alt, aIdx) => (
-                            <button
-                              key={aIdx}
-                              onClick={() => setSelectedAltIndex(aIdx)}
-                              className={`text-left p-3 rounded-xl border text-xs transition cursor-pointer ${
-                                selectedAltIndex === aIdx
-                                  ? 'bg-indigo-50/80 border-indigo-500 text-slate-900'
-                                  : 'bg-slate-50 border-slate-200 text-slate-600'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-extrabold">응용: {alt.japanese}</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                                  {alt.nuance}
-                                </span>
-                              </div>
-                              <div className="text-[11px] text-indigo-600 font-bold mt-0.5">
-                                [{alt.koreanPronunciation}] — {alt.koreanTranslation}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
-                      <FuriganaText
-                        text={getActiveTargetPhrase(currentTurn).japanese}
-                        showFurigana={displaySettings.showFurigana}
-                        className="text-lg font-black text-slate-900"
-                        rtClassName="text-[10.5px] font-bold text-indigo-600"
-                      />
-                      <div className="text-xs font-extrabold text-indigo-600">
-                        [{getActiveTargetPhrase(currentTurn).koreanPronunciation}]
-                      </div>
-                    </div>
-
-                    {(spokenTranscript || speechResult || speechError) && (
-                      <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1 text-xs">
-                        {spokenTranscript && (
-                          <div>
-                            <span className="text-slate-600 font-medium">인식된 발음: </span>
-                            <span className="font-extrabold text-slate-900">
-                              {spokenTranscript}
-                            </span>
-                          </div>
-                        )}
-                        {speechResult && (
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-emerald-800 font-bold">
-                              {speechResult.feedback}
-                            </span>
-                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-extrabold">
-                              {speechResult.score}점
-                            </span>
-                          </div>
-                        )}
-                        {speechError && (
-                          <div className="text-rose-600 font-bold">{speechError}</div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <button
-                        onClick={handleToggleMicGuided}
-                        className={`py-3.5 px-4 rounded-2xl font-extrabold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
-                          isListening
-                            ? 'bg-rose-600 text-white animate-pulse shadow-md'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                        }`}
-                      >
-                        {isListening ? (
-                          <>
-                            <MicOff className="w-4 h-4" /> 듣는 중...
-                          </>
-                        ) : (
-                          <>
-                            <Mic className="w-4 h-4 text-rose-500" /> 마이크로 말하기
-                          </>
-                        )}
-                      </button>
-
-                      <button
-                        onClick={() => setCurrentTurnIndex((prev) => prev + 1)}
-                        className="py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/20 cursor-pointer"
-                      >
-                        <CheckCircle2 className="w-4 h-4" /> 다음 턴으로 →
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 완료 카드 */}
+            {/* 시나리오 완료 카드 */}
             {isFinished && (
               <div className="rounded-[28px] bg-white border-2 border-indigo-500/30 p-6 text-center space-y-4 shadow-xl animate-fadeIn">
                 <div className="inline-flex p-3.5 rounded-2xl bg-indigo-50 text-indigo-600">
                   <Sparkles className="w-7 h-7" />
                 </div>
-                <h3 className="text-lg font-black text-slate-900">
-                  🎉 [{userRole === 'customer' ? '손님(A)' : '점원(B)'}] 역할 클리어!
+                <h3 className="text-xl font-black text-slate-900">
+                  🎉 [{userRole === 'customer' ? '손님(A)' : '점원(B)'}] 역할 완주!
                 </h3>
-                <p className="text-xs text-slate-600 leading-relaxed max-w-md mx-auto">
-                  이제 반대 역할로 바꿔서 대화해 보세요! 점원의 대사를 직접 입으로 말해보면 실제 일본 매장에서 상대방의 질문이 완벽하게 들립니다.
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
+                  이제 반대 역할로 바꿔서 대화해 보세요! 점원의 대사를 직접 말해보면 일본 현지에서 상대방의 빠른 대사가 거짓말처럼 또렷하게 들립니다.
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
                   <button
                     onClick={handleSwapRole}
-                    className="py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                    className="py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer transition active:scale-[0.99]"
                   >
                     <ArrowLeftRight className="w-4 h-4" />
                     {userRole === 'customer'
@@ -884,7 +792,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                   </button>
                   <button
                     onClick={() => setMode('freetalk')}
-                    className="py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                    className="py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer transition active:scale-[0.99]"
                   >
                     <MessageSquare className="w-4 h-4" />
                     실전 AI 프리토킹 도전하기
@@ -893,7 +801,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
 
                 <button
                   onClick={() => setCurrentTurnIndex(0)}
-                  className="text-xs font-bold text-slate-400 hover:text-slate-700 inline-flex items-center gap-1 pt-1 cursor-pointer"
+                  className="text-xs font-bold text-slate-400 hover:text-slate-700 inline-flex items-center gap-1 pt-2 cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" /> 처음부터 다시 하기
                 </button>
@@ -905,22 +813,21 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
         )}
 
         {/* ======================================================== */}
-        {/* 실전 AI 프리토킹 모드 */}
+        {/* 모드 2: 실전 AI 프리토킹 모드 */}
         {/* ======================================================== */}
         {mode === 'freetalk' && (
           <div className="space-y-4">
-            <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-emerald-800">
-                  🎯 프리토킹 미션 ({userRole === 'customer' ? '손님 A' : '점원 B'})
-                </span>
-              </div>
-              <ul className="space-y-1 text-xs text-emerald-900 font-medium">
+            {/* 프리토킹 미션 알림 */}
+            <div className="rounded-2xl bg-emerald-50/80 border border-emerald-200/90 p-4 space-y-2">
+              <span className="text-xs font-extrabold text-emerald-800">
+                🎯 프리토킹 미션 ({userRole === 'customer' ? '손님 A' : '점원 B'})
+              </span>
+              <ul className="space-y-1.5 text-xs text-emerald-950 font-medium">
                 {(userRole === 'customer'
                   ? scenario.freeTalkStarter.customerStarts.missions
                   : scenario.freeTalkStarter.staffStarts.missions
                 ).map((m, idx) => (
-                  <li key={idx} className="flex items-center gap-1.5">
+                  <li key={idx} className="flex items-center gap-2">
                     <span className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
                       {idx + 1}
                     </span>
@@ -930,6 +837,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
               </ul>
             </div>
 
+            {/* 메시지 리스트 */}
             <div className="space-y-3">
               {freeMessages.map((msg) => {
                 const isUser = msg.sender === 'user';
@@ -943,18 +851,18 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                       {isUser ? ' · 나' : ' · 파트너'}
                     </span>
                     <div
-                      className={`max-w-[92%] rounded-[24px] p-4 border space-y-1.5 shadow-xs ${
+                      className={`max-w-[92%] sm:max-w-[85%] rounded-[24px] p-4 border space-y-1.5 shadow-xs ${
                         isUser
-                          ? 'bg-indigo-600 border-indigo-600 text-white'
-                          : 'bg-white border-slate-200 text-slate-900'
+                          ? 'bg-indigo-600 border-indigo-600 text-white rounded-tr-sm'
+                          : 'bg-white border-slate-200 text-slate-900 rounded-tl-sm'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <div>
+                        <div className="flex-1">
                           <FuriganaText
                             text={msg.japanese}
                             showFurigana={displaySettings.showFurigana}
-                            className={`text-base font-black ${
+                            className={`text-base sm:text-lg font-black ${
                               isUser ? 'text-white' : 'text-slate-900'
                             }`}
                             rtClassName={`text-[10px] font-bold ${
@@ -966,10 +874,10 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                           onClick={() =>
                             speakJapanese(msg.japanese, displaySettings.ttsSpeed)
                           }
-                          className={`p-2 rounded-xl shrink-0 cursor-pointer ${
+                          className={`p-1.5 rounded-lg shrink-0 cursor-pointer transition ${
                             isUser
-                              ? 'bg-indigo-500 text-white'
-                              : 'bg-slate-100 text-slate-700'
+                              ? 'bg-white/20 hover:bg-white/30 text-white'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                           }`}
                         >
                           <Volume2 className="w-4 h-4" />
@@ -996,12 +904,12 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                       )}
 
                       {msg.correctionFeedback && (
-                        <div className="mt-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
+                        <div className="mt-2 p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-white">
                           ✨ <strong>회화 코칭:</strong> {msg.correctionFeedback}
                         </div>
                       )}
                       {msg.realLifeTip && (
-                        <div className="mt-1 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
+                        <div className="mt-1 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
                           💡 <strong>현지 표현 팁:</strong> {msg.realLifeTip}
                         </div>
                       )}
@@ -1011,79 +919,241 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
               })}
 
               {isAiThinking && (
-                <div className="text-xs font-bold text-slate-400 animate-pulse px-2">
-                  상대방이 답변을 입력하고 있습니다...
+                <div className="text-xs font-bold text-slate-400 animate-pulse px-2 flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
+                  <span>상대방이 답변을 입력하고 있습니다...</span>
                 </div>
               )}
-            </div>
-
-            {/* 추천 답변 칩 + 입력창 */}
-            <div className="rounded-[24px] bg-white border border-slate-200 p-4 space-y-3 shadow-lg">
-              {lastFreePartnerMsg?.suggestedReplies &&
-                lastFreePartnerMsg.suggestedReplies.length > 0 && (
-                  <div className="space-y-1.5">
-                    <div className="text-[11px] font-bold text-slate-400">
-                      💬 탭하면 바로 전송되는 추천 답변:
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      {lastFreePartnerMsg.suggestedReplies.map((sug, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => handleSendFreeTalk(sug.japanese)}
-                          className="text-left p-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200/80 text-xs transition cursor-pointer"
-                        >
-                          <div className="font-extrabold text-slate-900">
-                            {sug.japanese}
-                          </div>
-                          <div className="text-[11px] text-indigo-600 font-bold">
-                            [{sug.koreanPronunciation}] —{' '}
-                            <span className="text-slate-600">{sug.koreanTranslation}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleToggleMicFreeTalk}
-                  className={`p-3 rounded-xl transition cursor-pointer shrink-0 ${
-                    isListening
-                      ? 'bg-rose-600 text-white animate-pulse'
-                      : 'bg-slate-100 text-indigo-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {isListening ? (
-                    <MicOff className="w-4 h-4" />
-                  ) : (
-                    <Mic className="w-4 h-4" />
-                  )}
-                </button>
-                <input
-                  type="text"
-                  value={freeInput}
-                  onChange={(e) => setFreeInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSendFreeTalk();
-                  }}
-                  placeholder="일본어로 말하거나 직접 입력해보세요..."
-                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                />
-                <button
-                  onClick={() => handleSendFreeTalk()}
-                  disabled={!freeInput.trim() || isAiThinking}
-                  className="p-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-bold cursor-pointer shrink-0"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
             </div>
 
             <div ref={chatEndRef} />
           </div>
         )}
       </div>
+
+      {/* ======================================================== */}
+      {/* 3. 하단 고정 액션 컨트롤러 (현대적 모바일 플로팅 독) */}
+      {/* ======================================================== */}
+      {mode === 'guided' && !isFinished && currentTurn && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] px-4 py-3">
+          <div className="max-w-2xl mx-auto space-y-2.5">
+            {/* Case A: 파트너 턴일 때 (상대방의 말을 듣고 이해) */}
+            {currentTurn.speaker !== userRole ? (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg">
+                    🎧 {currentTurn.speaker === 'staff' ? '점원' : '손님'}의 말을 듣고 확인하세요
+                  </span>
+                  <button
+                    onClick={() =>
+                      speakJapanese(currentTurn.japanese, displaySettings.ttsSpeed)
+                    }
+                    className="text-xs font-extrabold text-indigo-600 flex items-center gap-1 cursor-pointer hover:underline"
+                  >
+                    <Volume2 className="w-4 h-4" /> 다시 듣기
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => speakJapanese(currentTurn.japanese, 0.72)}
+                    className="py-3 px-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition cursor-pointer shrink-0"
+                    title="천천히 듣기"
+                  >
+                    🐢 0.7x
+                  </button>
+                  <button
+                    onClick={() => setCurrentTurnIndex((prev) => prev + 1)}
+                    className="flex-1 py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs sm:text-sm shadow-md shadow-indigo-600/25 active:scale-[0.99] transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span>이해 완료! 내 차례로 넘어가기</span>
+                    <span>→</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Case B: 나의 턴일 때 (발음 연습 및 음성 인식) */
+              <div className="space-y-2">
+                {/* 상단 턴 안내 및 다른 표현 알약 셀렉터 */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                    🎙️ 내가 말할 차례 ({userRole === 'customer' ? '손님 A' : '점원 B'})
+                  </span>
+
+                  <button
+                    onClick={() =>
+                      speakJapanese(
+                        getActiveTargetPhrase(currentTurn).japanese,
+                        displaySettings.ttsSpeed
+                      )
+                    }
+                    className="text-xs font-bold text-slate-600 hover:text-indigo-600 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-indigo-600" /> 모범 발음
+                  </button>
+                </div>
+
+                {/* 응용 표현이 있을 경우 가로 스와이프 알약 탭 */}
+                {currentTurn.alternatives && currentTurn.alternatives.length > 0 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                    <button
+                      onClick={() => setSelectedAltIndex(-1)}
+                      className={`px-2.5 py-1 rounded-xl text-[11px] font-extrabold shrink-0 transition cursor-pointer ${
+                        selectedAltIndex === -1
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      기본 표현
+                    </button>
+                    {currentTurn.alternatives.map((alt, aIdx) => (
+                      <button
+                        key={aIdx}
+                        onClick={() => setSelectedAltIndex(aIdx)}
+                        className={`px-2.5 py-1 rounded-xl text-[11px] font-extrabold shrink-0 transition flex items-center gap-1 cursor-pointer ${
+                          selectedAltIndex === aIdx
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        <span>{alt.nuance}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 발화 타겟 요약 카드 */}
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-black text-slate-900 text-sm truncate">
+                      {getActiveTargetPhrase(currentTurn).japanese}
+                    </div>
+                    <div className="text-[11px] font-extrabold text-indigo-600 truncate">
+                      [{getActiveTargetPhrase(currentTurn).koreanPronunciation}]
+                    </div>
+                  </div>
+
+                  {speechResult && (
+                    <span className="px-2.5 py-1 rounded-xl bg-emerald-600 text-white text-xs font-black shrink-0 animate-scaleIn">
+                      {speechResult.score}점
+                    </span>
+                  )}
+                </div>
+
+                {/* 실시간 음성 피드백 */}
+                {(spokenTranscript || speechError) && (
+                  <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-xs flex items-center justify-between gap-2">
+                    {spokenTranscript && (
+                      <span className="text-slate-800 font-bold truncate">
+                        인식: "{spokenTranscript}"
+                      </span>
+                    )}
+                    {speechError && (
+                      <span className="text-rose-600 font-bold">{speechError}</span>
+                    )}
+                    {speechResult && (
+                      <span className="text-emerald-700 font-extrabold text-[11px] shrink-0">
+                        {speechResult.feedback}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* 하단 버튼 2개: 마이크로 말하기 + 다음 턴 */}
+                <div className="grid grid-cols-2 gap-2 pt-0.5">
+                  <button
+                    onClick={handleToggleMicGuided}
+                    className={`py-3 px-3 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      isListening
+                        ? 'bg-rose-600 text-white animate-pulse shadow-md shadow-rose-600/30'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                    }`}
+                  >
+                    {isListening ? (
+                      <>
+                        <MicOff className="w-4 h-4" /> 듣는 중 (탭해서 중지)
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="w-4 h-4 text-rose-500" /> 마이크로 말하기
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => setCurrentTurnIndex((prev) => prev + 1)}
+                    className="py-3 px-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/20 active:scale-[0.99] transition cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" /> 다음 턴으로 →
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* FreeTalk Mode 전용 하단 고정 입력창 */}
+      {mode === 'freetalk' && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-4 py-2.5 shadow-[0_-8px_30px_rgba(0,0,0,0.06)]">
+          <div className="max-w-2xl mx-auto space-y-2">
+            {/* 추천 답변 칩 */}
+            {lastFreePartnerMsg?.suggestedReplies &&
+              lastFreePartnerMsg.suggestedReplies.length > 0 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                  <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                    추천 답변:
+                  </span>
+                  {lastFreePartnerMsg.suggestedReplies.map((sug, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSendFreeTalk(sug.japanese)}
+                      className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-indigo-50 border border-slate-200 text-xs font-bold text-slate-700 hover:text-indigo-700 shrink-0 transition cursor-pointer whitespace-nowrap"
+                    >
+                      {sug.japanese} ({sug.koreanTranslation})
+                    </button>
+                  ))}
+                </div>
+              )}
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleToggleMicFreeTalk}
+                className={`p-3 rounded-2xl transition cursor-pointer shrink-0 ${
+                  isListening
+                    ? 'bg-rose-600 text-white animate-pulse'
+                    : 'bg-slate-100 text-indigo-600 hover:bg-slate-200'
+                }`}
+                title="음성으로 말하기"
+              >
+                {isListening ? (
+                  <MicOff className="w-4 h-4" />
+                ) : (
+                  <Mic className="w-4 h-4" />
+                )}
+              </button>
+              <input
+                type="text"
+                value={freeInput}
+                onChange={(e) => setFreeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSendFreeTalk();
+                }}
+                placeholder="일본어로 말하거나 한국어로 입력해보세요..."
+                className="flex-1 px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-indigo-500 font-medium"
+              />
+              <button
+                onClick={() => handleSendFreeTalk()}
+                disabled={!freeInput.trim() || isAiThinking}
+                className="p-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-bold cursor-pointer shrink-0 transition active:scale-95"
+                title="보내기"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
