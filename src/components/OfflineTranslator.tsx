@@ -74,7 +74,6 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   const [packStats, setPackStats] = useState(() => getOfflinePackStats());
   const [corpusCategory, setCorpusCategory] = useState<string>('일상');
   const [justSaved, setJustSaved] = useState<boolean>(false);
-  const [copiedInput, setCopiedInput] = useState<boolean>(false);
   const [copiedOutput, setCopiedOutput] = useState<boolean>(false);
 
   const [selectedEmergencyCat, setSelectedEmergencyCat] = useState<
@@ -330,7 +329,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   const cachedEntries = getNeuralCacheEntries();
   const filteredCorpus = PREBUILT_CORPUS.filter((c) => c.category === corpusCategory);
 
-  const handleCopyText = async (text: string, type: 'input' | 'output') => {
+  const handleCopyText = async (text: string) => {
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
@@ -342,13 +341,8 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
       document.execCommand('copy');
       document.body.removeChild(textarea);
     }
-    if (type === 'input') {
-      setCopiedInput(true);
-      setTimeout(() => setCopiedInput(false), 1600);
-    } else {
-      setCopiedOutput(true);
-      setTimeout(() => setCopiedOutput(false), 1600);
-    }
+    setCopiedOutput(true);
+    setTimeout(() => setCopiedOutput(false), 1600);
   };
 
   return (
@@ -478,31 +472,16 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
               className="w-full text-[15px] font-semibold text-slate-900 placeholder:text-slate-400 bg-transparent resize-none focus:outline-none pr-8"
             />
             {inputText && (
-              <div className="absolute top-0 right-0 flex items-center gap-1">
-                <button
-                  onClick={() => handleCopyText(inputText, 'input')}
-                  className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition cursor-pointer"
-                  title="입력한 내용 복사"
-                >
-                  {copiedInput ? (
-                    <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-0.5">
-                      <Check className="w-3.5 h-3.5" /> 복사됨
-                    </span>
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    setInputText('');
-                    setTranslationResult(null);
-                  }}
-                  className="p-1 text-slate-300 hover:text-slate-500 cursor-pointer"
-                  title="입력 내용 지우기"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  setInputText('');
+                  setTranslationResult(null);
+                }}
+                className="absolute top-0 right-0 p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                title="입력 내용 지우기"
+              >
+                <X className="w-4 h-4" />
+              </button>
             )}
           </div>
 
@@ -565,18 +544,23 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
 
               <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() =>
-                    handleCopyText(
-                      `${translationResult.japanese}\n[${translationResult.koreanPronunciation}]\n${translationResult.koreanMeaning}`,
-                      'output'
-                    )
-                  }
+                  onClick={() => {
+                    const textToCopy =
+                      direction === 'ko-to-jp'
+                        ? translationResult.japanese
+                        : translationResult.koreanMeaning;
+                    handleCopyText(textToCopy);
+                  }}
                   className={`px-2.5 py-1.5 rounded-xl border text-xs font-extrabold flex items-center gap-1 transition cursor-pointer ${
                     copiedOutput
                       ? 'bg-emerald-600 border-emerald-600 text-white'
                       : 'bg-white hover:bg-indigo-50 border-indigo-200 text-indigo-700'
                   }`}
-                  title="번역된 일본어 및 발음 복사"
+                  title={
+                    direction === 'ko-to-jp'
+                      ? '번역된 일본어 문장 복사'
+                      : '번역된 한국어 문장 복사'
+                  }
                 >
                   {copiedOutput ? (
                     <>
@@ -584,7 +568,8 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3.5 h-3.5" /> 복사
+                      <Copy className="w-3.5 h-3.5" />{' '}
+                      {direction === 'ko-to-jp' ? '일본어 복사' : '한국어 복사'}
                     </>
                   )}
                 </button>
