@@ -278,10 +278,8 @@ async function callGeminiAPI(
         aiConfig.apiKey.trim()
       )}`;
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const makePayload = (useThinkingBudget: boolean) =>
+        JSON.stringify({
           systemInstruction: {
             parts: [{ text: buildSystemPrompt(scenario, userRole, partnerRole) }],
           },
@@ -298,9 +296,23 @@ async function callGeminiAPI(
           generationConfig: {
             responseMimeType: 'application/json',
             temperature: 0.7,
+            ...(useThinkingBudget ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
           },
-        }),
+        });
+
+      let response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: makePayload(true),
       });
+
+      if (response.status === 400) {
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: makePayload(false),
+        });
+      }
 
       if (!response.ok) {
         lastError = new Error(`Gemini HTTP ${response.status}`);
@@ -766,17 +778,29 @@ export async function generateCustomTopicOpening(
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
           aiConfig.apiKey.trim()
         )}`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        const makePayload = (useThinkingBudget: boolean) =>
+          JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
             generationConfig: {
               responseMimeType: 'application/json',
               temperature: 0.7,
+              ...(useThinkingBudget ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
             },
-          }),
+          });
+
+        let res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: makePayload(true),
         });
+
+        if (res.status === 400) {
+          res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: makePayload(false),
+          });
+        }
 
         if (res.ok) {
           const data = await res.json();
