@@ -40,6 +40,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<MainTab>('scenarios');
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [selectedInitialRole, setSelectedInitialRole] = useState<RoleType>('customer');
+  const [selectedInitialMode, setSelectedInitialMode] = useState<'guided' | 'freetalk'>('guided');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState<boolean>(false);
 
@@ -237,6 +238,7 @@ export const App: React.FC = () => {
             <RolePlayRoom
               scenario={selectedScenario}
               initialRole={selectedInitialRole}
+              initialMode={selectedInitialMode}
               displaySettings={displaySettings}
               onUpdateDisplay={setDisplaySettings}
               aiConfig={aiConfig}
@@ -259,6 +261,7 @@ export const App: React.FC = () => {
                   completedMap={completedMap}
                   onSelectScenario={(scenario, role) => {
                     stopSpeaking();
+                    setSelectedInitialMode('guided');
                     setSelectedInitialRole(role);
                     setSelectedScenario(scenario);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -266,6 +269,13 @@ export const App: React.FC = () => {
                   onGoKeigoTab={() => handleSwitchTab('keigo')}
                   onOpenCustomModal={() => setIsCustomModalOpen(true)}
                   onDeleteCustomScenario={handleDeleteCustomScenario}
+                  onStartFreeTalk={() => {
+                    stopSpeaking();
+                    setSelectedInitialRole('customer');
+                    setSelectedInitialMode('freetalk');
+                    setSelectedScenario(allScenarios[0]);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                 />
               )}
               {activeTab === 'translator' && (

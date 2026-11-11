@@ -21,6 +21,7 @@ interface ScenarioListProps {
   onGoKeigoTab: () => void;
   onOpenCustomModal: () => void;
   onDeleteCustomScenario?: (id: string) => void;
+  onStartFreeTalk?: () => void;
 }
 
 export const ScenarioList: React.FC<ScenarioListProps> = ({
@@ -30,6 +31,7 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
   onGoKeigoTab,
   onOpenCustomModal,
   onDeleteCustomScenario,
+  onStartFreeTalk,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'all'>('all');
 
@@ -105,6 +107,34 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
           </div>
         </div>
       </div>
+
+      {/* 1-1. 자유 주제 AI 프리토킹 퀵 런처 배너 */}
+      {onStartFreeTalk && (
+        <div
+          onClick={onStartFreeTalk}
+          className="rounded-[24px] bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 p-4 text-white shadow-lg shadow-emerald-600/15 flex items-center justify-between gap-3 cursor-pointer hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl shrink-0">
+              🤖
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-sm text-white">자유 주제 AI 프리토킹</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-slate-900 font-black">
+                  Gemini 3.8
+                </span>
+              </div>
+              <p className="text-xs text-emerald-100/90 truncate mt-0.5">
+                대화 상황을 직접 입력하거나 인기 주제를 골라 자유롭게 대화하기
+              </p>
+            </div>
+          </div>
+          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+            <ChevronRight className="w-4 h-4 text-white" />
+          </div>
+        </div>
+      )}
 
       {/* 2. 카테고리 알약 탭 */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
