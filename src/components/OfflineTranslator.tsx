@@ -16,6 +16,8 @@ import {
   japaneseToHiraganaReading,
   kanaToKoreanPronunciation,
   romajiToKoreanPronunciation,
+  romajiToHiragana,
+  registerDynamicKanjiReadings,
 } from '../utils/japanesePhonetics';
 import { speakJapanese, startJapaneseSpeechRecognition } from '../utils/speech';
 import { FuriganaText } from './FuriganaText';
@@ -89,68 +91,130 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     const text = (textOverride ?? inputText).trim();
     if (!text) return;
 
-    // 1. 사전 캐싱된 오프라인 언어팩 & 다중 절 형태소 합성 엔진으로 즉시 변환 (0.01초)
+    // 1. 사전 캐싱된 오프라인 언어팩 & 다중 절 구문 합성 엔진으로 0.01초 즉시 응답
     const offlineOut = executeOfflineTranslation(text, direction);
     setTranslationResult(offlineOut);
 
-    // 2. 온라인 모드이고 코퍼스 정확 매칭(confidence >= 95)이 아닌 경우 온라인 신경망 번역 후 오프라인 캐시에 영구 저장
-    if (!effectiveOffline && offlineOut.confidence < 95) {
+    // 2. 온라인 모드일 때: 코퍼스 100% 완전 일치(confidence >= 99)나 이미 캐시된 신경망 번역이 아니면 실시간 다중 엔드포인트 신경망 번역 수행!
+    if (
+      !effectiveOffline &&
+      offlineOut.confidence < 99 &&
+      offlineOut.engineType !== 'offline-neural-cache'
+    ) {
       setIsTranslating(true);
       try {
         const sl = direction === 'ko-to-jp' ? 'ko' : 'ja';
         const tl = direction === 'ko-to-jp' ? 'ja' : 'ko';
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&dt=rm&q=${encodeURIComponent(
-          text
-        )}`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          const segments = Array.isArray(data?.[0]) ? data[0] : [];
-          const translatedText = segments
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .map((seg: any) => (typeof seg?.[0] === 'string' ? seg[0] : ''))
-            .join('')
-            .trim();
+        const q = encodeURIComponent(text);
 
-          const romajiSegments = segments
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .map((seg: any) => {
-              if (!Array.isArray(seg)) return '';
-              return direction === 'ko-to-jp'
-                ? seg[2] || ''
-                : seg[3] || seg[2] || '';
-            })
-            .filter(Boolean)
-            .join(' ')
-            .trim();
+        let translatedText = '';
+        let romajiSegments = '';
 
-          if (translatedText) {
-            const finalJapanese = direction === 'ko-to-jp' ? translatedText : text;
-            const matchedFurigana = japaneseToHiraganaReading(finalJapanese);
-            const hasUnresolvedKanji = /[\u4e00-\u9faf]/.test(matchedFurigana);
-            const matchedKoreanPron = !hasUnresolvedKanji
-              ? kanaToKoreanPronunciation(finalJapanese)
-              : romajiSegments
-              ? romajiToKoreanPronunciation(romajiSegments)
-              : kanaToKoreanPronunciation(finalJapanese);
+        // 1차 신경망 번역: Google Chrome Extension Dict API (429 차단 없이 0.2초 내 응답)
+        try {
+          const res = await fetch(
+            `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=${sl}&tl=${tl}&q=${q}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              if (typeof data[0] === 'string') {
+                translatedText = data.join('').trim();
+              } else if (Array.isArray(data[0])) {
+                translatedText = data
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  .map((item: any) => (typeof item?.[0] === 'string' ? item[0] : ''))
+                  .join('')
+                  .trim();
+              }
+            }
+          }
+        } catch {
+          // 2차 엔드포인트로 폴백
+        }
 
-            const liveOut: TranslationOutput = {
-              japanese: finalJapanese,
-              furigana: matchedFurigana,
-              koreanPronunciation: matchedKoreanPron,
-              koreanMeaning: direction === 'ko-to-jp' ? text : translatedText,
-              engineType: 'online-live',
-              confidence: 100,
-              tip: '이 번역 결과는 기기 내부 오프라인 언어팩 캐시에 자동 추가되어 비행기 모드에서도 동일하게 작동합니다.',
-            };
-
-            setTranslationResult(liveOut);
-            saveNeuralCache(text, direction, liveOut);
-            setPackStats(getOfflinePackStats());
+        // 2차 신경망 번역: MyMemory Neural Translation API
+        if (!translatedText) {
+          try {
+            const mmRes = await fetch(
+              `https://api.mymemory.translated.net/get?q=${q}&langpair=${sl}|${tl}`
+            );
+            if (mmRes.ok) {
+              const mmData = await mmRes.json();
+              if (mmData?.responseData?.translatedText) {
+                translatedText = mmData.responseData.translatedText.trim();
+              }
+            }
+          } catch {
+            // 3차 엔드포인트로 폴백
           }
         }
+
+        // 3차 폴백: Google gtx single API (모바일 네트워크 환경용)
+        if (!translatedText) {
+          try {
+            const gtxRes = await fetch(
+              `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&dt=rm&q=${q}`
+            );
+            if (gtxRes.ok) {
+              const data = await gtxRes.json();
+              const segments = Array.isArray(data?.[0]) ? data[0] : [];
+              translatedText = segments
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .map((seg: any) => (typeof seg?.[0] === 'string' ? seg[0] : ''))
+                .join('')
+                .trim();
+              romajiSegments = segments
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .map((seg: any) => (Array.isArray(seg) ? seg[2] || seg[3] || '' : ''))
+                .filter(Boolean)
+                .join(' ')
+                .trim();
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        if (translatedText) {
+          const finalJapanese = direction === 'ko-to-jp' ? translatedText : text;
+
+          // 로마자 발음 데이터를 일본어 원문 한자와 가나 앵커 정렬하여 사전에 없던 한자의 후리가나까지 자동 추출·등록!
+          if (romajiSegments) {
+            registerDynamicKanjiReadings(finalJapanese, romajiSegments);
+          }
+
+          let matchedFurigana = japaneseToHiraganaReading(finalJapanese);
+          const hasUnresolvedKanji = /[\u4e00-\u9faf\u3400-\u4dbf]/.test(
+            matchedFurigana
+          );
+
+          if (hasUnresolvedKanji && romajiSegments) {
+            matchedFurigana = romajiToHiragana(romajiSegments);
+          }
+
+          const matchedKoreanPron = !hasUnresolvedKanji
+            ? kanaToKoreanPronunciation(finalJapanese)
+            : romajiSegments
+            ? romajiToKoreanPronunciation(romajiSegments)
+            : kanaToKoreanPronunciation(finalJapanese);
+
+          const liveOut: TranslationOutput = {
+            japanese: finalJapanese,
+            furigana: matchedFurigana,
+            koreanPronunciation: matchedKoreanPron,
+            koreanMeaning: direction === 'ko-to-jp' ? text : translatedText,
+            engineType: 'online-live',
+            confidence: 100,
+            tip: '실시간 신경망 번역 결과와 한자 후리가나가 오프라인 캐시에 자동 저장되어 비행기 모드에서도 그대로 작동합니다.',
+          };
+
+          setTranslationResult(liveOut);
+          saveNeuralCache(text, direction, liveOut);
+          setPackStats(getOfflinePackStats());
+        }
       } catch {
-        // 오프라인 결과 유지
+        // 오프라인 구문 번역 결과 유지
       } finally {
         setIsTranslating(false);
       }

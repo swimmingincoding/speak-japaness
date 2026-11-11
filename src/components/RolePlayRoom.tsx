@@ -19,6 +19,7 @@ import {
   japaneseToHiraganaReading,
   kanaToKoreanPronunciation,
 } from '../utils/japanesePhonetics';
+import { executeOfflineTranslation } from '../utils/offlineEngine';
 import { generatePartnerReply } from '../utils/aiService';
 import { FuriganaText } from './FuriganaText';
 import {
@@ -277,14 +278,21 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
     const content = (textToSend ?? freeInput).trim();
     if (!content || isAiThinking) return;
 
+    const isKoreanInput = /[가-힣]/.test(content);
+    const trans = isKoreanInput
+      ? executeOfflineTranslation(content, 'ko-to-jp')
+      : executeOfflineTranslation(content, 'jp-to-ko');
+
     const userMsg: FreeTalkMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
       role: userRole,
-      japanese: content,
-      furigana: japaneseToHiraganaReading(content),
-      koreanPronunciation: kanaToKoreanPronunciation(content),
-      koreanTranslation: '',
+      japanese: isKoreanInput ? trans.japanese : content,
+      furigana: isKoreanInput ? trans.furigana : japaneseToHiraganaReading(content),
+      koreanPronunciation: isKoreanInput
+        ? trans.koreanPronunciation
+        : kanaToKoreanPronunciation(content),
+      koreanTranslation: isKoreanInput ? content : trans.koreanMeaning,
     };
 
     const nextHistory = [...freeMessages, userMsg];

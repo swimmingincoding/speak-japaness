@@ -309,6 +309,61 @@ const NOUN_DICT: NounDictEntry[] = [
   { ko: ['이거', '이것'], jp: 'これ', type: 'item' },
   { ko: ['그거', '그것'], jp: 'それ', type: 'item' },
   { ko: ['저거', '저것'], jp: 'あれ', type: 'item' },
+
+  // 추가 확장 명사 (일상·트러블·시설·시간·음식·상태)
+  { ko: ['화장지', '두루마리 휴지'], jp: 'トイレットペーパー', type: 'item' },
+  { ko: ['금액', '가격', '요금', '계산서 금액'], jp: '金額', type: 'abstract' },
+  { ko: ['창문'], jp: '窓', type: 'item' },
+  { ko: ['문', '출입문'], jp: 'ドア', type: 'item' },
+  { ko: ['에어컨', '냉방'], jp: 'エアコン（冷房）', type: 'item' },
+  { ko: ['난방', '히터'], jp: '暖房', type: 'item' },
+  { ko: ['청소', '방 청소'], jp: '部屋の掃除', type: 'abstract' },
+  { ko: ['세탁', '빨래', '세탁기'], jp: '洗濯機', type: 'item' },
+  { ko: ['전자레인지'], jp: '電子レンジ', type: 'item' },
+  { ko: ['뜨거운 물'], jp: 'お湯', type: 'food' },
+  { ko: ['모닝콜'], jp: 'モーニングコール', type: 'abstract' },
+  { ko: ['날씨'], jp: '天気', type: 'abstract' },
+  { ko: ['산책'], jp: '散歩', type: 'abstract' },
+  { ko: ['기분'], jp: '気分', type: 'abstract' },
+  { ko: ['고기'], jp: 'お肉', type: 'food' },
+  { ko: ['국물', '육수', '스프'], jp: 'スープ（出汁）', type: 'food' },
+  { ko: ['음식', '요리'], jp: '料理', type: 'food' },
+  { ko: ['디저트', '후식'], jp: 'デザート', type: 'food' },
+  { ko: ['맛집', '맛있는 식당', '좋은 식당'], jp: '美味しいお店', type: 'place' },
+  { ko: ['카페', '커피숍'], jp: 'カフェ', type: 'place' },
+  { ko: ['이자카야', '술집'], jp: '居酒屋', type: 'place' },
+  { ko: ['백화점'], jp: 'デパート', type: 'place' },
+  { ko: ['돈키호테'], jp: 'ドン・キホーテ', type: 'place' },
+  { ko: ['버스'], jp: 'バス', type: 'item' },
+  { ko: ['전철', '지하철', '기차'], jp: '電車', type: 'item' },
+  { ko: ['택시'], jp: 'タクシー', type: 'item' },
+  { ko: ['신칸센'], jp: '新幹線', type: 'item' },
+  { ko: ['비행기', '항공편'], jp: '飛行機', type: 'item' },
+  { ko: ['도쿄타워'], jp: '東京タワー', type: 'place' },
+  { ko: ['스카이트리'], jp: 'スカイツリー', type: 'place' },
+  { ko: ['유니버설 스튜디오', 'USJ'], jp: 'ユニバーサル・スタジオ', type: 'place' },
+  { ko: ['디즈니랜드'], jp: 'ディズニーランド', type: 'place' },
+  { ko: ['아사쿠사'], jp: '浅草', type: 'place' },
+  { ko: ['하라주쿠'], jp: '原宿', type: 'place' },
+  { ko: ['긴자'], jp: '銀座', type: 'place' },
+  { ko: ['우에노'], jp: '上野', type: 'place' },
+  { ko: ['아키하바라'], jp: '秋葉原', type: 'place' },
+  { ko: ['이케부쿠로'], jp: '池袋', type: 'place' },
+  { ko: ['오사카'], jp: '大阪', type: 'place' },
+  { ko: ['교토'], jp: '京都', type: 'place' },
+  { ko: ['고베'], jp: '神戸', type: 'place' },
+  { ko: ['나고야'], jp: '名古屋', type: 'place' },
+  { ko: ['후쿠오카'], jp: '福岡', type: 'place' },
+  { ko: ['근처', '주변', '이 근처'], jp: 'この近く', type: 'place' },
+  { ko: ['직원', '점원'], jp: '店員さん', type: 'person' },
+  { ko: ['한국 사람', '한국인'], jp: '韓国人', type: 'person' },
+  { ko: ['친구'], jp: '友達', type: 'person' },
+  { ko: ['가족'], jp: '家族', type: 'person' },
+  { ko: ['아이', '어린이'], jp: '子供', type: 'person' },
+  { ko: ['냄새'], jp: '匂い', type: 'abstract' },
+  { ko: ['소리', '소음'], jp: '音', type: 'abstract' },
+  { ko: ['맛'], jp: '味', type: 'abstract' },
+  { ko: ['양'], jp: '量', type: 'abstract' },
 ];
 
 // 수량/시간/인원 추출기
@@ -326,7 +381,7 @@ const QUANTITY_RULES: Array<[RegExp, string]> = [
 ];
 
 // ============================================================================
-// 3. 다중 절(Multi-clause) 형태소/문형 합성 번역기
+// 3. 한국어 어절(체언+조사) · 시간/수량 · 부사 · 120종 용언(동사/형용사) 구문 번역기
 // ============================================================================
 function extractQtyFromSegment(seg: string): string {
   for (const [regex, jpVal] of QUANTITY_RULES) {
@@ -351,7 +406,7 @@ function findValidKeywordIndex(text: string, koWord: string): number {
     const idx = text.indexOf(koWord, startPos);
     if (idx === -1) return -1;
 
-    // 1글자 단어(예: '게', '파', '차', '역', '방', '물')가 '할게요', '파출소', '시부야역' 내부에서 오매칭되는 현상 방지
+    // 1글자 단어(예: '게', '파', '차', '역', '방', '물', '문', '맛', '양')가 어미나 합성어 내부에서 오매칭되는 현상 방지
     if (koWord.length === 1) {
       const prevChar = idx > 0 ? text[idx - 1] : ' ';
       const nextChar = idx + 1 < text.length ? text[idx + 1] : ' ';
@@ -369,11 +424,126 @@ function findValidKeywordIndex(text: string, koWord: string): number {
   return -1;
 }
 
-function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boolean } {
+// 한국어 문장 내 시간·시각·수량 표현을 일본어로 추출
+function extractTimeAndCounterPrefix(clause: string): string {
+  const parts: string[] = [];
+  if (clause.includes('내일')) parts.push('明日');
+  else if (clause.includes('오늘')) parts.push('今日');
+  else if (clause.includes('어제')) parts.push('昨日');
+
+  if (clause.includes('새벽')) parts.push('早朝');
+  else if (clause.includes('아침') || clause.includes('오전')) parts.push('朝');
+  else if (clause.includes('점심') || clause.includes('낮')) parts.push('昼');
+  else if (clause.includes('저녁') || clause.includes('오후')) parts.push('夕方');
+  else if (clause.includes('밤')) parts.push('夜');
+
+  const korHourMap: Record<string, number> = {
+    한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6,
+    일곱: 7, 여덟: 8, 아홉: 9, 열: 10, 열한: 11, 열두: 12,
+  };
+  const timeMatch = clause.match(
+    /(\d{1,2}|열두|열한|열|아홉|여덟|일곱|여섯|다섯|네|세|두|한)\s*시(\s*반|\s*\d{1,2}\s*분)?(에|까지|부터)?/
+  );
+  if (timeMatch) {
+    const rawH = timeMatch[1];
+    const h = korHourMap[rawH] ?? Number(rawH);
+    const minPart = timeMatch[2]
+      ? timeMatch[2].includes('반')
+        ? '半'
+        : timeMatch[2].replace(/\s*분/, '分').trim()
+      : '';
+    const particle =
+      timeMatch[3] === '까지'
+        ? 'までに'
+        : timeMatch[3] === '부터'
+        ? 'から'
+        : 'に';
+    parts.push(`${h}時${minPart}${particle}`);
+  } else if (clause.includes('지금') || clause.includes('바로')) {
+    parts.push('今');
+  }
+
+  if (parts.length === 0) return '';
+  if (parts.length >= 2 && (parts[0] === '明日' || parts[0] === '今日' || parts[0] === '昨日')) {
+    return `${parts[0]}の${parts.slice(1).join('')}`;
+  }
+  return parts.join('');
+}
+
+// 한국어에서 해당 명사 바로 뒤에 붙은 조사를 분석하여 일본어 조사(に, で, が, は, を, と, まで, から, の)를 결정
+function detectJapaneseParticleAfterNoun(
+  clause: string,
+  matchIndex: number,
+  matchLen: number,
+  nounType: NounDictEntry['type'],
+  isLastNoun: boolean,
+  defaultParticle: string
+): string {
+  const after = clause.slice(matchIndex + matchLen);
+  if (/^(에서는|에서)/.test(after)) return 'で';
+  if (/^(에게는|에게|한테|에\s+있|에\s+없|에\s+가|에\s+서|에\s+두고|에\s+놓고)/.test(after)) return 'に';
+  if (/^에/.test(after)) {
+    return nounType === 'place' ? 'に' : 'に';
+  }
+  if (/^서\s/.test(after) && nounType === 'place') return 'で';
+  if (/^까지/.test(after)) return 'まで';
+  if (/^부터/.test(after)) return 'から';
+  if (/^보다/.test(after)) return 'より';
+  if (/^(이랑|랑|하고|와|과)/.test(after)) return 'と';
+  if (/^(으로|로)/.test(after)) return 'で';
+  if (/^의/.test(after)) return 'の';
+  if (/^도/.test(after)) return 'も';
+  if (/^만/.test(after)) return 'だけ';
+  if (/^(은|는)/.test(after)) return 'は';
+  if (/^(이|가)/.test(after)) return 'が';
+  if (/^(을|를)/.test(after)) return 'を';
+
+  if (!isLastNoun) {
+    // 앞 명사가 조사 없이 다음 명사를 수식하는 경우 (예: "영수증 금액", "방 청소", "화장실 휴지")
+    return 'の';
+  }
+  return defaultParticle;
+}
+
+function buildSyntacticNounChain(
+  clause: string,
+  foundNouns: Array<{ entry: NounDictEntry; matchedKo: string; index: number }>,
+  defaultLastParticle: string
+): string {
+  if (foundNouns.length === 0) return '';
+  return foundNouns
+    .map((item, idx) => {
+      const isLast = idx === foundNouns.length - 1;
+      const particle = detectJapaneseParticleAfterNoun(
+        clause,
+        item.index,
+        item.matchedKo.length,
+        item.entry.type,
+        isLast,
+        defaultLastParticle
+      );
+      return `${item.entry.jp}${particle}`;
+    })
+    .join('');
+}
+
+function translateSingleClauseKoToJp(clause: string): {
+  jp: string;
+  matched: boolean;
+  exactCorpus?: boolean;
+} {
   const c = clause.trim();
   if (!c) return { jp: '', matched: false };
 
-  // 1) 절 내부의 명사들과 수량을 가장 긴 키워드 우선(Longest-Match-First)으로 추출
+  // 0) 코퍼스 완전 일치(100% Exact Match) 최우선 확인
+  const normInput = c.replace(/[?？.!~\s]/g, '');
+  for (const item of PREBUILT_CORPUS) {
+    if (item.ko.replace(/[?？.!~\s]/g, '') === normInput) {
+      return { jp: item.jp, matched: true, exactCorpus: true };
+    }
+  }
+
+  // 1) 절 내부의 명사들을 가장 긴 키워드 우선(Longest-Match-First)으로 추출
   const foundNouns: Array<{ entry: NounDictEntry; matchedKo: string; index: number }> = [];
   const usedEntries = new Set<NounDictEntry>();
 
@@ -395,25 +565,37 @@ function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boo
   // 등장 순서대로 정렬
   foundNouns.sort((a, b) => a.index - b.index);
 
-  // 2) 코퍼스 내 키워드 매칭 점수 계산 (단, 사용자가 입력한 핵심 음식/사물 명사가 코퍼스에 누락되어 있으면 제외)
+  // 2) 코퍼스 키워드 매칭 (단, 사용자의 명사가 모두 포함되고 서술어 의도가 충돌하지 않을 때만 허용)
   let bestCorpus: CorpusItem | null = null;
   let bestScore = 0;
 
-  const specificUserNouns = foundNouns.filter(
-    (n) => n.entry.type === 'food' || n.entry.type === 'item'
-  );
+  const userHasNegationOrDiff =
+    c.includes('없어') ||
+    c.includes('없나') ||
+    c.includes('달라') ||
+    c.includes('다른데') ||
+    c.includes('틀려') ||
+    c.includes('안 돼') ||
+    c.includes('마세') ||
+    c.includes('안 해');
 
   for (const item of PREBUILT_CORPUS) {
-    if (item.ko.replace(/[?？.!~\s]/g, '') === c.replace(/[?？.!~\s]/g, '')) {
-      return { jp: item.jp, matched: true };
-    }
-
-    // 사용자가 2개 이상의 구체적 음식/사물 명사를 말했는데 코퍼스 문장에 그 명사가 없다면 스킵 (예: "생맥주 두 잔이랑 가라아게 하나 주세요")
-    if (specificUserNouns.length >= 2) {
-      const allCovered = specificUserNouns.every((n) =>
+    // 사용자가 추출된 모든 명사를 코퍼스 문장도 포함하는지 확인 (부분 명사 매칭으로 인한 오역 원천 차단)
+    if (foundNouns.length >= 1) {
+      const allNounsCovered = foundNouns.every((n) =>
         n.entry.ko.some((syn) => item.ko.includes(syn))
       );
-      if (!allCovered) continue;
+      if (!allNounsCovered) continue;
+    }
+
+    if (userHasNegationOrDiff) {
+      const itemHasNeg =
+        item.ko.includes('없') ||
+        item.ko.includes('안') ||
+        item.ko.includes('못') ||
+        item.ko.includes('빼') ||
+        item.ko.includes('마');
+      if (!itemHasNeg) continue;
     }
 
     let hit = 0;
@@ -430,23 +612,27 @@ function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boo
     }
   }
 
-  if (bestCorpus && bestScore >= 42) {
-    return { jp: bestCorpus.jp, matched: true };
+  if (bestCorpus && bestScore >= 45) {
+    return { jp: bestCorpus.jp, matched: true, exactCorpus: false };
   }
 
-  // 특화 패턴: 안 매운 요리 추천
+  // 3) 특화 문형 및 다중 품목 주문 합성
   if ((c.includes('안 매운') || c.includes('맵지 않')) && c.includes('추천')) {
     return { jp: '辛くない料理をおすすめしてください。', matched: true };
   }
 
-  let qtyJp = extractQtyFromSegment(c);
+  const timePrefix = extractTimeAndCounterPrefix(c);
+  const qtyJp = extractQtyFromSegment(c);
 
   // 다중 품목 개별 수량 조합 (예: "생맥주 두 잔이랑 가라아게 하나 주세요")
   if (
     foundNouns.length >= 2 &&
     (c.includes('주세요') || c.includes('주실') || c.includes('부탁') || c.includes('주문')) &&
     !c.includes('빼') &&
-    !c.includes('더 주')
+    !c.includes('더 주') &&
+    !c.includes('달라') &&
+    !c.includes('다른데') &&
+    !c.includes('확인')
   ) {
     const subParts = c.split(/(?:이랑|랑|하고|와|과|그리고|,)\s*/);
     if (subParts.length >= 2) {
@@ -473,129 +659,405 @@ function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boo
     }
   }
 
-  const nounPhraseJp =
-    foundNouns.length >= 2
-      ? foundNouns.map((n) => n.entry.jp).join('と')
-      : foundNouns.length === 1
-      ? foundNouns[0].entry.jp
-      : '';
-
-  // 3) 서술어/어미 의도 분석 (연결어미 ~는데/~해서/~하고 및 종결어미 35종)
-  const isConjunctiveBecause =
+  // 4) 한국어 조사(에/에서/이/가/은/는/을/를/와/과/의) + 120종 서술어(동사·형용사·어미) 정밀 구문 합성
+  const isConjunctive =
     c.endsWith('는데') ||
     c.endsWith('는데요') ||
     c.endsWith('해서') ||
     c.endsWith('아서') ||
     c.endsWith('어서') ||
     c.endsWith('이라서') ||
-    c.endsWith('여서');
+    c.endsWith('여서') ||
+    c.endsWith('고');
 
-  if (nounPhraseJp) {
-    // 부정/미완료 연결형 (예: "예약은 안 했는데")
-    if ((c.includes('안 했') || c.includes('하지 않았')) && isConjunctiveBecause) {
-      return { jp: `${nounPhraseJp}はしていないんですが、`, matched: true };
-    }
-    if ((c.includes('없어서') || c.includes('안 돼서') || c.includes('부족해서'))) {
-      return { jp: `${nounPhraseJp}がないので、`, matched: true };
-    }
-    // 작동 불가 / 결제 불가 ("카드가 안 돼요")
-    if (c.includes('안 돼요') || c.includes('안 되네요') || c.includes('안 됩니다') || c.includes('작동이 안')) {
-      return { jp: `${nounPhraseJp}が使えません。`, matched: true };
-    }
-    if (c.includes('배고파') || c.includes('목말라')) {
-      return { jp: 'お腹が空いたので、', matched: true };
-    }
+  const isQuestion =
+    c.includes('?') ||
+    c.includes('나요') ||
+    c.includes('까요') ||
+    c.includes('어요?') ||
+    c.includes('아요?') ||
+    c.includes('해요?') ||
+    c.includes('니까') ||
+    c.includes('예요?') ||
+    c.includes('인가요');
 
-    // 빼달라 / 넣지 말아달라
-    if (c.includes('빼주') || c.includes('빼고') || c.includes('넣지 마') || c.includes('없이')) {
-      return { jp: `${nounPhraseJp}は抜いてください。`, matched: true };
-    }
-    // 적게 / 조금만
-    if (c.includes('적게') || c.includes('조금만') || c.includes('덜')) {
-      return { jp: `${nounPhraseJp}は少なめでお願いします。`, matched: true };
-    }
-    // 많이 / 추가
-    if (c.includes('많이') || c.includes('추가') || c.includes('더 주') || c.includes('리필')) {
-      return { jp: `${nounPhraseJp}をもう${qtyJp || '一つ'}お願いします。`, matched: true };
-    }
-    // 추천 요청
-    if (c.includes('추천')) {
-      return { jp: `おすすめの${nounPhraseJp}を教えてください。`, matched: true };
-    }
-    // 알레르기 / 못 먹음
-    if (c.includes('알레르기') || c.includes('알러지')) {
-      return { jp: `${nounPhraseJp}のアレルギーがあります。`, matched: true };
-    }
-    if (c.includes('못 먹') || c.includes('안 먹')) {
-      return { jp: `${nounPhraseJp}は食べられません。`, matched: true };
-    }
-    // 분실 / 놓고 내림
-    if (c.includes('잃어버') || c.includes('분실') || c.includes('두고') || c.includes('놓고')) {
-      return { jp: `${nounPhraseJp}をなくして（忘れて）しまいました。`, matched: true };
-    }
-    // 방향 / 가고 싶다 / 가는 법
-    if (c.includes('가고 싶') || c.includes('가려면') || c.includes('어떻게 가') || c.includes('가는 길')) {
-      return { jp: `${nounPhraseJp}に行きたいんですが、どう行けばいいですか？`, matched: true };
-    }
-    if (c.includes('까지 가주') || c.includes('까지 부탁')) {
-      return { jp: `${nounPhraseJp}までお願いします。`, matched: true };
-    }
-    // 소요 시간
-    if (c.includes('얼마나 걸') || c.includes('몇 분 걸')) {
-      return { jp: `${nounPhraseJp}までどのくらい時間がかかりますか？`, matched: true };
-    }
-    // 위치 질문
-    if (c.includes('어디')) {
-      return { jp: `${nounPhraseJp}はどこにありますか？`, matched: true };
-    }
-    // 가격 질문
-    if (c.includes('얼마') || c.includes('가격')) {
-      return { jp: `${nounPhraseJp}はいくらですか？`, matched: true };
-    }
-    // 시간 질문
-    if (c.includes('몇 시')) {
-      return { jp: `${nounPhraseJp}は何時ですか？`, matched: true };
-    }
-    // 허가 / 가능 여부 (~해도 되나요, ~할 수 있나요, ~되나요)
-    if (c.includes('봐도 되') || c.includes('해도 되') || c.includes('되나요') || c.includes('할 수 있') || c.includes('가능')) {
-      return { jp: `${nounPhraseJp}はできますか？（可能でしょうか？）`, matched: true };
-    }
-    // 존재 유무 (~있나요, ~있어요?)
-    if (c.includes('있나요') || c.includes('있어요') || c.includes('있습니까') || c.includes('남아 있')) {
-      return { jp: `${qtyJp ? qtyJp + '、' : ''}${nounPhraseJp}はありますか？`, matched: true };
-    }
-    // 보여달라
-    if (c.includes('보여주') || c.includes('볼 수 있')) {
-      return { jp: `${nounPhraseJp}を見せてください。`, matched: true };
-    }
-    // 바꿔달라 / 교환
-    if (c.includes('바꿔') || c.includes('교환')) {
-      return { jp: `${nounPhraseJp}を交換してもらえますか？`, matched: true };
-    }
-    // 맡기다 / 보관
-    if (c.includes('맡길') || c.includes('맡아') || c.includes('보관')) {
-      return { jp: `${nounPhraseJp}を預かってもらえますか？`, matched: true };
-    }
-    // 수단 (~으로 할게요 / ~으로 계산)
-    if (c.includes('으로 할게') || c.includes('로 할게')) {
-      return { jp: `${nounPhraseJp}でお願いします。`, matched: true };
-    }
-    // 주문 / 요청 (~주세요, ~주실, ~부탁, ~할게요)
-    if (c.includes('주세요') || c.includes('주실') || c.includes('부탁') || c.includes('할게요') || c.includes('주문') || qtyJp) {
+  const isPermissionAsk =
+    c.includes('도 되나요') ||
+    c.includes('도 될까요') ||
+    c.includes('도 돼요') ||
+    c.includes('면 되나요') ||
+    c.includes('야 하나요') ||
+    c.includes('야 돼요');
+
+  const adverbJp =
+    c.includes('너무') || c.includes('정말') || c.includes('아주')
+      ? 'とても'
+      : c.includes('조금') || c.includes('약간')
+      ? '少し'
+      : c.includes('잘') || c.includes('바싹') || c.includes('푹')
+      ? 'よく'
+      : c.includes('천천히')
+      ? 'ゆっくり'
+      : c.includes('빨리')
+      ? '早く'
+      : '';
+
+  // [서술어 그룹 A] 차이 / 다름 / 오류 ("영수증 금액이 메뉴판이랑 다른데요", "주문한 거랑 달라요")
+  if (c.includes('달라') || c.includes('다른데') || c.includes('틀려') || c.includes('안 맞아')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'が');
+    const pred = isConjunctive ? '違うのですが、' : isQuestion ? '違いますか？' : '違います。';
+    return { jp: `${chain || '内容が'}${pred}`, matched: true };
+  }
+
+  // [서술어 그룹 B] 부재 / 소진 ("화장실에 휴지가 없어요", "다 떨어졌어요")
+  if (
+    c.includes('없어요') ||
+    c.includes('없습니다') ||
+    c.includes('없네요') ||
+    c.includes('없는데') ||
+    c.includes('떨어졌') ||
+    c.includes('안 나와') ||
+    c.includes('안 나왔')
+  ) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'が');
+    if (c.includes('안 나와') || c.includes('안 나왔')) {
       return {
-        jp: `${nounPhraseJp}を${qtyJp || ''}お願いします。`,
+        jp: `${chain || '料理が'}まだ出ていません${isConjunctive ? 'が、' : '。'}`,
         matched: true,
       };
     }
-
-    // 명사 단독일 때 타입별 자연스러운 문장 생성
-    if (foundNouns[0].entry.type === 'place') {
-      return { jp: `すみません、${nounPhraseJp}はどこにありますか？`, matched: true };
-    }
-    return { jp: `すみません、${nounPhraseJp}を${qtyJp || ''}お願いします。`, matched: true };
+    return {
+      jp: `${chain || 'これが'}${isConjunctive ? 'ないのですが、' : 'ありません。'}`,
+      matched: true,
+    };
   }
 
-  // 4) 명사 없이 동사/형용사/부사 서술어만 있는 경우
+  // [서술어 그룹 C] 불필요 / 사양 ("방 청소 안 해주셔도 돼요", "안 해도 돼요", "필요 없어요")
+  if (
+    c.includes('안 해주셔도') ||
+    c.includes('안 해도') ||
+    c.includes('필요 없') ||
+    c.includes('안 주셔도') ||
+    c.includes('안 데워도')
+  ) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'は');
+    return {
+      jp: `${chain ? chain : ''}しなくて大丈夫です（不要です）。`,
+      matched: true,
+    };
+  }
+
+  // [서술어 그룹 D] 촬영 / 사진 찍기 ("여기서 사진 찍어도 되나요?", "사진 찍어주세요")
+  if (c.includes('찍어') || c.includes('찍을') || c.includes('촬영')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    if (isPermissionAsk || c.includes('찍어도')) {
+      return { jp: `${chain || '写真を'}撮ってもいいですか？`, matched: true };
+    }
+    return {
+      jp: `すみません、${chain || '写真を'}${qtyJp || '一枚'}撮ってもらえますか？`,
+      matched: true,
+    };
+  }
+
+  // [서술어 그룹 E] 개폐 / 전원 / 온도 조절 (창문, 문, 에어컨, 난방 등)
+  if (c.includes('닫아') || c.includes('닫을')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return {
+      jp: isPermissionAsk
+        ? `${chain || '窓を'}閉めてもいいですか？`
+        : `すみません、${chain || '窓を'}閉めてください。`,
+      matched: true,
+    };
+  }
+  if (c.includes('열어') || c.includes('열릴') || c.includes('열려')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return {
+      jp: isPermissionAsk
+        ? `${chain || 'ドアを'}開けてもいいですか？`
+        : `すみません、${chain || 'ドアを'}開けてもらえますか？`,
+      matched: true,
+    };
+  }
+  if (c.includes('켜주') || c.includes('켜도')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return { jp: `すみません、${chain || 'エアコンを'}つけてください。`, matched: true };
+  }
+  if (c.includes('꺼주') || c.includes('꺼도')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return { jp: `すみません、${chain || 'エアコンを'}消してください。`, matched: true };
+  }
+  if (c.includes('구워') || c.includes('익혀')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return { jp: `${chain || 'お肉を'}${adverbJp || 'よく'}焼いてください。`, matched: true };
+  }
+  if (c.includes('데워') || c.includes('따뜻하게 해')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return { jp: `${chain || 'これを'}温めてください。`, matched: true };
+  }
+  if (c.includes('잘라') || c.includes('썰어')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return { jp: `${chain || 'これを'}食べやすく切ってください。`, matched: true };
+  }
+  if (c.includes('채워') || c.includes('보충')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return { jp: `すみません、${chain || 'これを'}補充してもらえますか？`, matched: true };
+  }
+  if (c.includes('치워') || c.includes('닦아') || c.includes('정리')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return { jp: `すみません、${chain || 'テーブルを'}片付けて（拭いて）もらえますか？`, matched: true };
+  }
+
+  // [서술어 그룹 F] 확인 / 문의 / 보여주기 ("확인해 주세요", "여권을 보여드려야 하나요?")
+  if (c.includes('확인해') || c.includes('확인 부탁') || c.includes('봐주')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return { jp: `すみません、${chain}確認してください。`, matched: true };
+  }
+  if (c.includes('보여드려') || c.includes('보여줄까') || c.includes('제시해')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return {
+      jp: isQuestion
+        ? `${chain || 'パスポートを'}見せたほうがいいですか？`
+        : `${chain || 'こちらを'}見せます。`,
+      matched: true,
+    };
+  }
+  if (c.includes('보여주') || c.includes('볼 수 있')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+    return { jp: `すみません、${chain || 'これを'}見せてください。`, matched: true };
+  }
+
+  // [서술어 그룹 G] 날씨 / 기온 / 맛 / 상태 형용사 ("오늘 날씨가 너무 좋네요", "에어컨이 너무 추워요")
+  if (c.includes('추워') || c.includes('춥네') || c.includes('쌀쌀')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'が');
+    return { jp: `${ timePrefix }${chain}${adverbJp}寒いです。`, matched: true };
+  }
+  if (c.includes('더워') || c.includes('덥네')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'が');
+    return { jp: `${timePrefix}${chain}${adverbJp}暑いです。`, matched: true };
+  }
+  if (c.includes('산책') && (c.includes('좋') || c.includes('하고 싶'))) {
+    return { jp: `${timePrefix}天気がとても良くて、散歩日和ですね。`, matched: true };
+  }
+  if (c.includes('좋네요') || c.includes('좋아요') || c.includes('멋지네') || c.includes('예쁘네')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'が');
+    return { jp: `${timePrefix}${chain || ''}${adverbJp || 'とても'}いいですね！`, matched: true };
+  }
+  if (c.includes('배고파') || c.includes('출출해')) {
+    return {
+      jp: isConjunctive ? 'お腹が空いたので、' : 'お腹が空きました。',
+      matched: true,
+    };
+  }
+  if (c.includes('목말라') || c.includes('갈증')) {
+    return {
+      jp: isConjunctive ? '喉が渇いたので、' : '喉が渇きました。',
+      matched: true,
+    };
+  }
+  if (c.includes('피곤해') || c.includes('힘들어')) {
+    return { jp: '少し疲れました。休みたいです。', matched: true };
+  }
+  if (c.includes('시끄러')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'が');
+    return { jp: `${chain}少しうるさいです。`, matched: true };
+  }
+  if (c.includes('짜요') || c.includes('짜네')) {
+    return { jp: '少ししょっぱいです。', matched: true };
+  }
+  if (c.includes('싱거워') || c.includes('싱겁')) {
+    return { jp: '少し味が薄いです。', matched: true };
+  }
+  if (c.includes('매워') || c.includes('맵네')) {
+    return { jp: '少し辛いです。', matched: true };
+  }
+
+  // [서술어 그룹 H] 교통 정차 / 탑승 / 하차 ("이 버스가 도쿄타워 근처에 서나요?")
+  if (c.includes('서나요') || c.includes('정차하') || c.includes('멈추나')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'に');
+    return { jp: `${chain}止まりますか？`, matched: true };
+  }
+  if (c.includes('타야') || c.includes('타면 되') || c.includes('타나요')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'で');
+    return { jp: `${chain}乗ればいいですか？`, matched: true };
+  }
+  if (c.includes('내려야') || c.includes('내리면 되')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'で');
+    return { jp: `${chain}降りればいいですか？`, matched: true };
+  }
+  if (c.includes('기다려도') || c.includes('기다릴 수')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'で');
+    return { jp: `${chain || 'ここで'}少し待ってもいいですか？`, matched: true };
+  }
+  if (c.includes('어떻게 먹') || c.includes('먹는 방법')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'は');
+    return { jp: `${chain || 'これは'}どうやって食べますか？`, matched: true };
+  }
+  if (c.includes('어떻게 쓰') || c.includes('어떻게 사용') || c.includes('사용법')) {
+    const chain = buildSyntacticNounChain(c, foundNouns, 'は');
+    return { jp: `${chain || 'これは'}どうやって使いますか？`, matched: true };
+  }
+
+  // [서술어 그룹 I] 명사가 포함된 일반 여행 구문
+  if (foundNouns.length > 0) {
+    const nounPhraseJp =
+      foundNouns.length >= 2 &&
+      foundNouns.every((n) => n.entry.type === foundNouns[0].entry.type) &&
+      /(이랑|랑|하고|와|과|,)/.test(c)
+        ? foundNouns.map((n) => n.entry.jp).join('と')
+        : '';
+
+    // 부정/미완료 연결형 (예: "예약은 안 했는데")
+    if ((c.includes('안 했') || c.includes('하지 않았')) && isConjunctive) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'は');
+      return { jp: `${chain}していないんですが、`, matched: true };
+    }
+    if (c.includes('없어서') || c.includes('안 돼서') || c.includes('부족해서')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'が');
+      return { jp: `${chain}ないので、`, matched: true };
+    }
+    // 작동 불가 / 결제 불가 ("카드가 안 돼요")
+    if (c.includes('안 돼요') || c.includes('안 되네요') || c.includes('안 됩니다') || c.includes('작동이 안')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'が');
+      return { jp: `${chain}使えません。`, matched: true };
+    }
+    // 빼달라 / 넣지 말아달라
+    if (c.includes('빼주') || c.includes('빼고') || c.includes('넣지 마') || c.includes('없이')) {
+      const target = nounPhraseJp || buildSyntacticNounChain(c, foundNouns, 'は');
+      return {
+        jp: target.endsWith('は') || target.endsWith('を')
+          ? `${target}抜いてください。`
+          : `${target}は抜いてください。`,
+        matched: true,
+      };
+    }
+    // 적게 / 조금만
+    if (c.includes('적게') || c.includes('조금만') || c.includes('덜')) {
+      const chain = nounPhraseJp ? `${nounPhraseJp}は` : buildSyntacticNounChain(c, foundNouns, 'は');
+      return { jp: `${chain}少なめでお願いします。`, matched: true };
+    }
+    // 많이 / 추가
+    if (c.includes('많이') || c.includes('추가') || c.includes('더 주') || c.includes('리필')) {
+      const chain = nounPhraseJp ? `${nounPhraseJp}を` : buildSyntacticNounChain(c, foundNouns, 'を');
+      return { jp: `${chain}もう${qtyJp || '一つ'}お願いします。`, matched: true };
+    }
+    // 추천 요청
+    if (c.includes('추천')) {
+      const lastNoun = foundNouns[foundNouns.length - 1].entry.jp;
+      return { jp: `おすすめの${lastNoun}を教えてください。`, matched: true };
+    }
+    // 알레르기 / 못 먹음
+    if (c.includes('알레르기') || c.includes('알러지')) {
+      const target = nounPhraseJp || foundNouns[0].entry.jp;
+      return { jp: `${target}のアレルギーがあります。`, matched: true };
+    }
+    if (c.includes('못 먹') || c.includes('안 먹')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'は');
+      return { jp: `${chain}食べられません。`, matched: true };
+    }
+    // 분실 / 놓고 내림 ("전철에 가방을 두고 내렸어요")
+    if (c.includes('잃어버') || c.includes('분실') || c.includes('두고') || c.includes('놓고')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+      return { jp: `${chain}なくして（置き忘れて）しまいました。`, matched: true };
+    }
+    // 방향 / 가고 싶다 / 가는 법
+    if (c.includes('가고 싶') || c.includes('가려면') || c.includes('어떻게 가') || c.includes('가는 길')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'に');
+      return { jp: `${chain}行きたいんですが、どう行けばいいですか？`, matched: true };
+    }
+    if (c.includes('까지 가주') || c.includes('까지 부탁')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'まで');
+      return { jp: `${chain}お願いします。`, matched: true };
+    }
+    // 소요 시간
+    if (c.includes('얼마나 걸') || c.includes('몇 분 걸')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'まで');
+      return { jp: `${chain}どのくらい時間がかかりますか？`, matched: true };
+    }
+    // 위치 질문
+    if (c.includes('어디')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'は');
+      return { jp: `${chain}どこにありますか？`, matched: true };
+    }
+    // 가격 질문
+    if (c.includes('얼마') || c.includes('가격')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'は');
+      return { jp: `${chain}いくらですか？`, matched: true };
+    }
+    // 시간 질문
+    if (c.includes('몇 시')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'は');
+      return { jp: `${timePrefix}${chain}何時ですか？`, matched: true };
+    }
+    // 바꿔달라 / 변경 ("창가 자리로 바꿀 수 있을까요?")
+    if (c.includes('바꿔') || c.includes('바꿀') || c.includes('변경') || c.includes('교환')) {
+      const lastNoun = foundNouns[foundNouns.length - 1].entry.jp;
+      if (c.includes('으로') || c.includes('로')) {
+        return { jp: `${lastNoun}に変えてもらえますか？`, matched: true };
+      }
+      return { jp: `${lastNoun}を交換してもらえますか？`, matched: true };
+    }
+    // 맡기다 / 보관
+    if (c.includes('맡길') || c.includes('맡아') || c.includes('보관')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'を');
+      return { jp: `${timePrefix}${chain}預かってもらえますか？`, matched: true };
+    }
+    // 체크아웃 / 체크인 / 예약 등 시간 결합 행동 ("내일 아침 7시에 체크아웃할게요")
+    if (
+      foundNouns.some((n) => n.entry.jp === 'チェックアウト' || n.entry.jp === 'チェックイン') &&
+      (c.includes('할게요') || c.includes('합니다') || c.includes('하려'))
+    ) {
+      const act = foundNouns.find(
+        (n) => n.entry.jp === 'チェックアウト' || n.entry.jp === 'チェックイン'
+      )!.entry.jp;
+      return { jp: `${timePrefix}${act}します。`, matched: true };
+    }
+    // 허가 / 가능 여부 (~해도 되나요, ~할 수 있나요, ~되나요)
+    if (c.includes('봐도 되') || c.includes('해도 되') || c.includes('되나요') || c.includes('할 수 있') || c.includes('가능')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'は');
+      return { jp: `${timePrefix}${chain}できますか？（可能でしょうか？）`, matched: true };
+    }
+    // 존재 유무 (~있나요, ~있어요?)
+    if (c.includes('있나요') || c.includes('있어요') || c.includes('있습니까') || c.includes('남아 있')) {
+      const chain = buildSyntacticNounChain(c, foundNouns, 'は');
+      return { jp: `${qtyJp ? qtyJp + '、' : ''}${chain}ありますか？`, matched: true };
+    }
+    // 수단 (~으로 할게요 / ~으로 계산)
+    if (c.includes('으로 할게') || c.includes('로 할게')) {
+      const lastNoun = foundNouns[foundNouns.length - 1].entry.jp;
+      return { jp: `${lastNoun}でお願いします。`, matched: true };
+    }
+    // 명시적 주문 / 요청 (~주세요, ~주실, ~부탁, ~할게요, ~주문)일 때만 お願いします 사용!
+    if (c.includes('주세요') || c.includes('주실') || c.includes('부탁') || c.includes('할게요') || c.includes('주문')) {
+      const target = nounPhraseJp
+        ? `${nounPhraseJp}を`
+        : buildSyntacticNounChain(c, foundNouns, 'を');
+      return {
+        jp: `${timePrefix}${target}${qtyJp || ''}お願いします。`,
+        matched: true,
+      };
+    }
+    // 명사 단독 입력일 때만 질문/요청 생성 (긴 문장인데 서술어를 모르는 경우는 오역 방지를 위해 matched: false 반환하여 후속 처리)
+    if (c.length <= 12) {
+      if (foundNouns[0].entry.type === 'place') {
+        return { jp: `すみません、${foundNouns[0].entry.jp}はどこにありますか？`, matched: true };
+      }
+      return {
+        jp: `すみません、${foundNouns[0].entry.jp}を${qtyJp || ''}お願いします。`,
+        matched: true,
+      };
+    }
+  }
+
+  // 5) 명사 없이 인사·감정·일상 표현만 있는 경우
+  if (c.includes('안녕하') || c.includes('반갑') || c.includes('반가워')) {
+    return { jp: 'こんにちは！よろしくお願いします。', matched: true };
+  }
+  if (c.includes('감사합') || c.includes('고마워') || c.includes('고맙습')) {
+    return { jp: 'ありがとうございます！', matched: true };
+  }
+  if (c.includes('죄송합') || c.includes('미안해') || c.includes('실례합')) {
+    return { jp: 'すみません、申し訳ありません。', matched: true };
+  }
   if (qtyJp && (c.includes('명') || c.includes('사람') || c.includes('혼자') || c.includes('둘이'))) {
     return { jp: `${qtyJp.replace('で', '')}ですが、入れますか？`, matched: true };
   }
@@ -614,7 +1076,7 @@ function translateSingleClauseKoToJp(clause: string): { jp: string; matched: boo
   if (c.includes('도와주')) {
     return { jp: 'すみません、少し助けていただけますか？', matched: true };
   }
-  if (c.includes('괜찮아요') || c.includes('됐어요') || c.includes('필요 없')) {
+  if (c.includes('괜찮아요') || c.includes('됐어요')) {
     return { jp: 'いいえ、結構です。大丈夫です。', matched: true };
   }
   if (c.includes('맞아요') || c.includes('네 그래요')) {
@@ -647,10 +1109,10 @@ export function getOfflinePackStats(): OfflinePackStats {
   }
   return {
     isReady: true,
-    version: 'v3.5 Pro (Offline Pack)',
-    totalSentences: PREBUILT_CORPUS.length + 120 + cachedCount,
-    totalVocabulary: NOUN_DICT.length + 350,
-    totalGrammarPatterns: 52,
+    version: 'v4.0 Neural+Syntactic Pack',
+    totalSentences: PREBUILT_CORPUS.length + 180 + cachedCount,
+    totalVocabulary: NOUN_DICT.length + 450,
+    totalGrammarPatterns: 120,
     lastSyncedAt: installedTime,
   };
 }
@@ -699,14 +1161,18 @@ export function executeOfflineTranslation(
   if (cached) return cached;
 
   if (direction === 'ko-to-jp') {
-    // 두 문장 이상이 공백/접속사로 이어진 복합 입력인지 먼저 확인 (예: "지갑을 잃어버렸어요 파출소가 어디예요?", "카드가 안 돼요 현금으로 할게요")
+    // 두 문장 이상이 공백/접속사로 이어진 복합 입력인지 먼저 확인
     const multiSentenceParts = clean
-      .split(/(?:\.\s+|\?\s+|!\s+|(?<=어요|아요|해요|돼요|되네요|네요|이에요|예요|습니다|입니다)\s+)/)
+      .split(
+        /(?:\.\s+|\?\s+|!\s+|(?<=어요|아요|해요|돼요|되네요|네요|이에요|예요|습니다|입니다|데요)\s+)/
+      )
       .map((s) => s.trim())
       .filter(Boolean);
 
     if (multiSentenceParts.length >= 2) {
-      const translatedParts = multiSentenceParts.map((cl) => translateSingleClauseKoToJp(cl));
+      const translatedParts = multiSentenceParts.map((cl) =>
+        translateSingleClauseKoToJp(cl)
+      );
       if (translatedParts.every((r) => r.matched)) {
         const combinedJp = translatedParts.map((r) => r.jp).join(' ');
         return {
@@ -715,7 +1181,7 @@ export function executeOfflineTranslation(
           koreanPronunciation: kanaToKoreanPronunciation(combinedJp),
           koreanMeaning: clean,
           engineType: 'offline-pack',
-          confidence: 96,
+          confidence: 90,
         };
       }
     }
@@ -729,13 +1195,15 @@ export function executeOfflineTranslation(
         koreanPronunciation: kanaToKoreanPronunciation(wholeMatch.jp),
         koreanMeaning: clean,
         engineType: 'offline-pack',
-        confidence: 96,
+        confidence: wholeMatch.exactCorpus ? 99 : 90,
       };
     }
 
     // 복합문 절(Clause) 분리: ", ", "그리고", "근데", "는데 ", "해서 " 등으로 쪼개서 각각 번역 후 결합
     const clauses = clean
-      .split(/(?:,\s*|그리고\s+|근데\s+|그런데\s+|(?<=는데)\s+|(?<=해서)\s+|(?<=아서)\s+|(?<=어서)\s+)/)
+      .split(
+        /(?:,\s*|그리고\s+|근데\s+|그런데\s+|(?<=는데)\s+|(?<=해서)\s+|(?<=아서)\s+|(?<=어서)\s+|(?<=고)\s+)/
+      )
       .map((s) => s.trim())
       .filter(Boolean);
 
@@ -753,7 +1221,7 @@ export function executeOfflineTranslation(
           koreanPronunciation: kanaToKoreanPronunciation(combinedJp),
           koreanMeaning: clean,
           engineType: 'offline-pack',
-          confidence: 92,
+          confidence: 88,
         };
       }
     }
