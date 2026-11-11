@@ -16,11 +16,10 @@ import { N3StudyRoom } from './components/N3StudyRoom';
 import { SettingsModal } from './components/SettingsModal';
 import { CustomScenarioModal } from './components/CustomScenarioModal';
 import {
-  MessageCircleHeart,
   Headphones,
   Bookmark,
-  Settings,
-  MapPin,
+  SlidersHorizontal,
+  MessageSquareText,
   Languages,
   GraduationCap,
 } from 'lucide-react';
@@ -43,7 +42,6 @@ export const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState<boolean>(false);
 
-  // 사용자 생성 커스텀 시나리오
   const [customScenarios, setCustomScenarios] = useState<Scenario[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.CUSTOM_SCENARIOS);
@@ -54,7 +52,6 @@ export const App: React.FC = () => {
     return [];
   });
 
-  // 표시 설정
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.DISPLAY);
@@ -71,7 +68,6 @@ export const App: React.FC = () => {
     };
   });
 
-  // AI 연동 설정
   const [aiConfig, setAiConfig] = useState<AIConfig>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.AI);
@@ -86,7 +82,6 @@ export const App: React.FC = () => {
     };
   });
 
-  // 저장한 표현 단어장
   const [savedExpressions, setSavedExpressions] = useState<SavedExpression[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.SAVED);
@@ -97,7 +92,6 @@ export const App: React.FC = () => {
     return [];
   });
 
-  // 시나리오별 완료한 역할 기록
   const [completedMap, setCompletedMap] = useState<
     Record<string, { customer: boolean; staff: boolean }>
   >(() => {
@@ -110,7 +104,6 @@ export const App: React.FC = () => {
     return {};
   });
 
-  // N3 암기 완료 단어 ID 목록
   const [n3MasteredList, setN3MasteredList] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.N3_MASTERED);
@@ -193,47 +186,46 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex justify-center">
-      {/* 모바일 앱 프레임 컨테이너 */}
-      <div className="w-full max-w-lg min-h-screen bg-slate-950 border-x border-slate-900 flex flex-col relative">
-        {/* 상단 앱 바 */}
-        <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-900 px-4 py-3 flex items-center justify-between">
-          <div
-            onClick={() => {
-              setSelectedScenario(null);
-              setActiveTab('scenarios');
-            }}
-            className="flex items-center gap-2.5 cursor-pointer"
-          >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center shadow-md shadow-rose-600/20">
-              <MessageCircleHeart className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-base tracking-tight text-white">
-                  TabiTalk
-                </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                  旅トーク
-                </span>
+    <div className="min-h-screen bg-[#EEF2F6] text-slate-900 flex justify-center">
+      {/* 모바일 앱 컨테이너 */}
+      <div className="w-full max-w-[480px] min-h-screen bg-[#F7F9FC] shadow-2xl shadow-slate-300/60 flex flex-col relative">
+        {/* 상단 모던 앱 바 (시나리오 대화방이 아닐 때만 표시) */}
+        {!selectedScenario && (
+          <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-xl border-b border-slate-200/80 px-5 py-3.5 flex items-center justify-between">
+            <div
+              onClick={() => setActiveTab('scenarios')}
+              className="flex items-center gap-3 cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-indigo-500/25 text-white font-black text-lg">
+                旅
               </div>
-              <p className="text-[11px] text-slate-400">
-                역할교대 회화 · 오프라인 번역 · N3 한자
-              </p>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-[17px] tracking-tight text-slate-900">
+                    TabiTalk
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                    타비토크
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 font-medium">
+                  손님 ↔ 점원 양방향 일본어 회화
+                </p>
+              </div>
             </div>
-          </div>
 
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 cursor-pointer"
-          >
-            <Settings className="w-4 h-4 text-rose-400" />
-            <span>맞춤 설정</span>
-          </button>
-        </header>
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200/70 flex items-center justify-center text-slate-700 transition cursor-pointer"
+              title="학습 및 AI 설정"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+            </button>
+          </header>
+        )}
 
         {/* 메인 콘텐츠 영역 */}
-        <main className="flex-1 px-4 pt-3">
+        <main className={selectedScenario ? 'flex-1' : 'flex-1 px-4 pt-4'}>
           {selectedScenario ? (
             <RolePlayRoom
               scenario={selectedScenario}
@@ -291,70 +283,39 @@ export const App: React.FC = () => {
           )}
         </main>
 
-        {/* 하단 모바일 5탭 네비게이션 */}
+        {/* 하단 모던 탭 네비게이션 */}
         {!selectedScenario && (
-          <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800 px-1.5 py-2 grid grid-cols-5 gap-0.5">
-            <button
-              onClick={() => setActiveTab('scenarios')}
-              className={`flex flex-col items-center justify-center py-1 rounded-xl transition cursor-pointer ${
-                activeTab === 'scenarios'
-                  ? 'text-rose-400 font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <MapPin className="w-4 h-4 mb-0.5" />
-              <span className="text-[10px]">실전회화</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('translator')}
-              className={`flex flex-col items-center justify-center py-1 rounded-xl transition cursor-pointer ${
-                activeTab === 'translator'
-                  ? 'text-indigo-400 font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Languages className="w-4 h-4 mb-0.5" />
-              <span className="text-[10px]">오프라인번역</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('n3')}
-              className={`flex flex-col items-center justify-center py-1 rounded-xl transition cursor-pointer ${
-                activeTab === 'n3'
-                  ? 'text-emerald-400 font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <GraduationCap className="w-4 h-4 mb-0.5" />
-              <span className="text-[10px]">N3 한자단어</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('keigo')}
-              className={`flex flex-col items-center justify-center py-1 rounded-xl transition cursor-pointer ${
-                activeTab === 'keigo'
-                  ? 'text-amber-400 font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Headphones className="w-4 h-4 mb-0.5" />
-              <span className="text-[10px]">접객어사전</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('saved')}
-              className={`flex flex-col items-center justify-center py-1 rounded-xl transition relative cursor-pointer ${
-                activeTab === 'saved'
-                  ? 'text-sky-400 font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Bookmark className="w-4 h-4 mb-0.5" />
-              <span className="text-[10px]">
-                내단어장{savedExpressions.length > 0 ? `(${savedExpressions.length})` : ''}
-              </span>
-            </button>
+          <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/80 px-2 py-2 grid grid-cols-5 gap-1 shadow-[0_-4px_20px_rgba(15,23,42,0.05)]">
+            {(
+              [
+                { id: 'scenarios', label: '실전회화', icon: MessageSquareText },
+                { id: 'translator', label: '번역·SOS', icon: Languages },
+                { id: 'n3', label: 'N3 단어', icon: GraduationCap },
+                { id: 'keigo', label: '접객어', icon: Headphones },
+                {
+                  id: 'saved',
+                  label: savedExpressions.length > 0 ? `단어장(${savedExpressions.length})` : '단어장',
+                  icon: Bookmark,
+                },
+              ] as const
+            ).map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`flex flex-col items-center justify-center py-1.5 rounded-2xl transition cursor-pointer ${
+                    isActive
+                      ? 'text-indigo-600 font-extrabold bg-indigo-50/80'
+                      : 'text-slate-400 font-medium hover:text-slate-600'
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'stroke-[2.5px]' : ''}`} />
+                  <span className="text-[11px] tracking-tight">{item.label}</span>
+                </button>
+              );
+            })}
           </nav>
         )}
 

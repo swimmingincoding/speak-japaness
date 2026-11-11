@@ -753,6 +753,50 @@ export function translateOfflineSmart(
     if (clean.includes('売り切れ') || clean.includes('完売')) {
       return buildConsistentResult(clean, '죄송합니다만 품절(매진)되었습니다.', 'offline-composed');
     }
+    if (clean.includes('満席')) {
+      return buildConsistentResult(clean, '현재 만석(빈자리 없음)입니다.', 'offline-composed');
+    }
+    if (clean.includes('予約')) {
+      return buildConsistentResult(
+        clean,
+        clean.includes('ですか') || clean.includes('ますか')
+          ? '예약하셨나요? (예약 여부를 묻는 질문)'
+          : '예약 관련 안내입니다.',
+        'offline-composed'
+      );
+    }
+    if (clean.includes('時間制')) {
+      return buildConsistentResult(clean, '좌석 이용 시간 제한(예: 2시간제) 안내입니다.', 'offline-composed');
+    }
+    if (clean.includes('ワンドリンク')) {
+      return buildConsistentResult(clean, '1인 1음료 필수 주문 매장입니다.', 'offline-composed');
+    }
+    if (clean.includes('お通し')) {
+      return buildConsistentResult(clean, '오토시(기본 유료 안주/자릿세) 안내입니다.', 'offline-composed');
+    }
+
+    // 일본어 문장 내 등록된 어휘들을 추출하여 한국어 의미 조합
+    const detectedWords = OFFLINE_LEXICON.filter((entry) =>
+      clean.includes(entry.jpWord.replace(/（.*?）/g, ''))
+    ).map((e) => e.koMeaning);
+
+    if (detectedWords.length > 0) {
+      const wordsStr = detectedWords.join(', ');
+      let suffixMeaning = '에 대한 안내입니다.';
+      if (clean.includes('ありません') || clean.includes('できません') || clean.includes('使えません')) {
+        suffixMeaning = '은(는) 없거나 불가능합니다.';
+      } else if (clean.includes('ですか') || clean.includes('ますか') || clean.includes('でしょうか')) {
+        suffixMeaning = '에 대해 질문하고 있습니다 (필요하신가요 / 맞으신가요?).';
+      } else if (clean.includes('ください') || clean.includes('お願いします')) {
+        suffixMeaning = '을(를) 해달라고(제시/이해해 달라고) 요청하고 있습니다.';
+      }
+      return buildConsistentResult(
+        clean,
+        `[${wordsStr}] ${suffixMeaning}`,
+        'offline-composed',
+        '오프라인 일본어 형태소·키워드 분석기가 문장 속 핵심 단어와 어미를 분석한 결과입니다.'
+      );
+    }
 
     return buildConsistentResult(
       clean,

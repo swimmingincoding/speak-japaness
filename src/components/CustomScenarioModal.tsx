@@ -267,28 +267,32 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4">
-      <div className="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-xs p-0 sm:p-4">
+      <div className="w-full max-w-md rounded-t-[32px] sm:rounded-[32px] bg-white border border-slate-200 p-6 space-y-4 shadow-2xl animate-fadeIn">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-rose-400" />
-            <h3 className="text-base font-bold text-white">나만의 여행 회화 상황 만들기</h3>
+            <Sparkles className="w-4 h-4 text-indigo-600" />
+            <h3 className="text-base font-extrabold text-slate-900">
+              나만의 여행 회화 상황 만들기
+            </h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+            className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:text-slate-800 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <p className="text-xs text-slate-300 leading-relaxed">
-          시중 강의에 없는 <strong>나만의 특별한 여행 상황</strong>을 입력하면 손님(A)과 종업원(B) 역할을 바꿔가며 연습할 수 있는 시나리오가 생성됩니다!
+        <p className="text-xs text-slate-600 leading-relaxed">
+          시중 강의에 없는 <strong>나만의 특별한 여행 상황</strong>을 입력하면 손님(A)과 점원(B) 역할을 바꿔가며 연습할 수 있는 시나리오가 생성됩니다!
         </p>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">카테고리 선택</label>
+            <label className="block text-xs font-extrabold text-slate-700 mb-1.5">
+              카테고리 선택
+            </label>
             <div className="grid grid-cols-2 gap-1.5">
               {(
                 [
@@ -301,10 +305,10 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
                 <button
                   key={c.id}
                   onClick={() => setCategory(c.id)}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold border text-left cursor-pointer ${
+                  className={`py-2.5 px-3 rounded-xl text-xs font-extrabold border text-left transition cursor-pointer ${
                     category === c.id
-                      ? 'bg-rose-600/20 border-rose-500 text-rose-200'
-                      : 'bg-slate-950 border-slate-800 text-slate-400'
+                      ? 'bg-indigo-600 border-indigo-600 text-white'
+                      : 'bg-slate-50 border-slate-200 text-slate-600'
                   }`}
                 >
                   {c.label}
@@ -314,7 +318,7 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
+            <label className="block text-xs font-extrabold text-slate-700 mb-1">
               어떤 상황인가요? (주제)
             </label>
             <input
@@ -322,12 +326,12 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="예: 카페에서 오트밀크 라떼 테이크아웃 주문하기"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-rose-500"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
+            <label className="block text-xs font-extrabold text-slate-700 mb-1">
               구체적인 장소 (선택)
             </label>
             <input
@@ -335,12 +339,12 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
               value={placeName}
               onChange={(e) => setPlaceName(e.target.value)}
               placeholder="예: 블루보틀 도쿄 시부야점 / 신주쿠 바"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-rose-500"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
+            <label className="block text-xs font-extrabold text-slate-700 mb-1">
               이 대화에서 꼭 말하고 싶은 목표 (선택)
             </label>
             <input
@@ -348,7 +352,7 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
               value={myGoal}
               onChange={(e) => setMyGoal(e.target.value)}
               placeholder="예: 얼음 적게 해달라고 하고 매장 컵 대신 테이크아웃 요청"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-rose-500"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
             />
           </div>
         </div>
@@ -356,7 +360,7 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
         <button
           onClick={buildSmartCustomScenario}
           disabled={isGenerating}
-          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-500 hover:to-orange-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+          className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 cursor-pointer"
         >
           {isGenerating ? (
             <>

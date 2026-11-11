@@ -6,11 +6,11 @@ import {
   Store,
   CheckCircle2,
   Clock,
-  Sparkles,
   ArrowRightLeft,
   Headphones,
-  PlusCircle,
+  Plus,
   Trash2,
+  ChevronRight,
 } from 'lucide-react';
 
 interface ScenarioListProps {
@@ -42,63 +42,71 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
     (acc, cur) => acc + (cur.customer ? 1 : 0) + (cur.staff ? 1 : 0),
     0
   );
+  const progressPercent = Math.round((completedRolesCount / Math.max(1, totalRolesCount)) * 100);
 
   return (
-    <div className="space-y-5 pb-24">
-      {/* 히어로 카드 */}
-      <div className="rounded-3xl bg-gradient-to-br from-rose-600 via-rose-700 to-slate-900 p-5 shadow-xl border border-rose-400/20 space-y-3">
+    <div className="space-y-5 pb-28">
+      {/* 1. 상단 히어로 대시보드 카드 */}
+      <div className="rounded-[28px] bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 p-6 text-white shadow-xl shadow-indigo-500/20 space-y-4">
         <div className="flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/25 text-rose-100 text-[11px] font-bold">
-            <ArrowRightLeft className="w-3.5 h-3.5" /> 손님(A) ↔ 종업원(B) 역할교대 회화
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm text-xs font-bold text-indigo-100">
+            <ArrowRightLeft className="w-3.5 h-3.5" /> 양방향 롤플레잉 학습
           </span>
-          <span className="text-xs font-bold text-rose-100">
-            마스터 진도: {completedRolesCount}/{totalRolesCount} 역할
+          <span className="text-xs font-bold text-indigo-100">
+            달성도 {progressPercent}% ({completedRolesCount}/{totalRolesCount})
           </span>
         </div>
 
-        <h1 className="text-xl font-extrabold text-white leading-snug">
-          내가 말할 줄 아는 건 기본,
-          <br />
-          <span className="text-amber-300">일본 점원이 하는 말까지 100% 들리는</span> 실전 훈련
-        </h1>
+        <div className="space-y-1.5">
+          <h1 className="text-xl font-extrabold leading-snug tracking-tight">
+            손님이 되어 주문도 해보고,
+            <br />
+            <span className="text-amber-300">점원이 되어 손님을 응대해 보세요!</span>
+          </h1>
+          <p className="text-xs text-indigo-100/85 leading-relaxed">
+            점원의 접객 일본어를 내 입으로 직접 말해보면, 실제 일본에 갔을 때 점원의 빠른 말이 거짓말처럼 들리기 시작합니다.
+          </p>
+        </div>
 
-        <p className="text-xs text-rose-100/90 leading-relaxed">
-          먼저 <strong>손님(A)</strong>이 되어 주문·요청을 해보고, 이어서 <strong>종업원(B)</strong>으로 역할을 바꿔 점원의 빠른 접객 일본어를 직접 말해보세요!
-        </p>
+        {/* 진도 프로그레스 바 */}
+        <div className="w-full h-2 rounded-full bg-black/20 overflow-hidden">
+          <div
+            className="h-full bg-amber-300 rounded-full transition-all duration-500"
+            style={{ width: `${Math.max(4, progressPercent)}%` }}
+          />
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+        {/* 퀵 액션 버튼 2개 */}
+        <div className="grid grid-cols-2 gap-2.5 pt-1">
           <button
-            onClick={onGoKeigoTab}
-            className="w-full py-2.5 px-3 rounded-xl bg-slate-950/50 hover:bg-slate-950/70 border border-white/15 text-xs font-bold text-amber-200 flex items-center justify-between transition cursor-pointer"
+            onClick={onOpenCustomModal}
+            className="py-3 px-3.5 rounded-2xl bg-white text-indigo-700 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:bg-indigo-50 active:scale-[0.98] transition cursor-pointer"
           >
-            <span className="flex items-center gap-1.5 truncate">
-              <Headphones className="w-4 h-4 text-amber-300 shrink-0" />
-              <span className="truncate">접객 일본어 핵심 6선 듣기</span>
-            </span>
-            <span>→</span>
+            <Plus className="w-4 h-4 stroke-[2.5px]" />
+            <span>내 맞춤 상황 만들기</span>
           </button>
 
           <button
-            onClick={onOpenCustomModal}
-            className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-rose-50 text-rose-700 text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-md transition cursor-pointer"
+            onClick={onGoKeigoTab}
+            className="py-3 px-3.5 rounded-2xl bg-indigo-950/40 hover:bg-indigo-950/60 border border-white/15 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition cursor-pointer"
           >
-            <PlusCircle className="w-4 h-4 shrink-0" />
-            <span>나만의 여행 상황 직접 만들기</span>
+            <Headphones className="w-4 h-4 text-amber-300" />
+            <span>점원 단골 멘트 6선</span>
           </button>
         </div>
       </div>
 
-      {/* 카테고리 필터 탭 */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+      {/* 2. 카테고리 알약 탭 */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
         <button
           onClick={() => setSelectedCategory('all')}
-          className={`px-3.5 py-2 rounded-2xl text-xs font-bold shrink-0 transition cursor-pointer ${
+          className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold shrink-0 transition cursor-pointer ${
             selectedCategory === 'all'
-              ? 'bg-white text-slate-950 shadow-md'
-              : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+              ? 'bg-slate-900 text-white shadow-md shadow-slate-900/15'
+              : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50'
           }`}
         >
-          🔥 전체 상황 ({scenarios.length})
+          전체 ({scenarios.length})
         </button>
         {(Object.keys(CATEGORY_META) as CategoryType[]).map((cat) => {
           const meta = CATEGORY_META[cat];
@@ -107,10 +115,10 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3.5 py-2 rounded-2xl text-xs font-bold shrink-0 transition flex items-center gap-1.5 cursor-pointer ${
+              className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold shrink-0 transition flex items-center gap-1.5 cursor-pointer ${
                 active
-                  ? 'bg-rose-600 text-white shadow-md'
-                  : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                  : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50'
               }`}
             >
               <span>{meta.emoji}</span>
@@ -120,8 +128,8 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
         })}
       </div>
 
-      {/* 시나리오 카드 목록 */}
-      <div className="space-y-4">
+      {/* 3. 시나리오 카드 리스트 (모던 화이트 카드) */}
+      <div className="space-y-3.5">
         {filtered.map((scenario) => {
           const catMeta = CATEGORY_META[scenario.category];
           const progress = completedMap[scenario.id] || { customer: false, staff: false };
@@ -129,27 +137,33 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
           return (
             <div
               key={scenario.id}
-              className="rounded-2xl bg-slate-900/95 border border-slate-800 hover:border-slate-700 p-4 space-y-3.5 shadow-md transition"
+              className="rounded-[24px] bg-white border border-slate-200/80 p-5 space-y-4 shadow-[0_2px_12px_rgba(15,23,42,0.04)] hover:shadow-md transition"
             >
-              {/* 상단 메타 배지 */}
+              {/* 카드 상단 태그 & 소요 시간 */}
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">{catMeta.emoji}</span>
-                  <span className="text-xs font-bold text-rose-400">{catMeta.label}</span>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-semibold">
-                    {scenario.difficulty}
+                  <span className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-base">
+                    {catMeta.emoji}
                   </span>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-indigo-600">{catMeta.label}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                        {scenario.difficulty}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-medium">{scenario.placeName}</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" /> 약 {scenario.estimatedMinutes}분 ·{' '}
-                    {scenario.turns.length}턴
-                  </span>
+
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{scenario.turns.length}턴</span>
                   {scenario.id.startsWith('custom-') && onDeleteCustomScenario && (
                     <button
                       onClick={() => onDeleteCustomScenario(scenario.id)}
-                      className="p-1 rounded-lg bg-slate-800 hover:bg-rose-600/30 text-slate-400 hover:text-rose-300 cursor-pointer"
-                      title="커스텀 시나리오 삭제"
+                      className="p-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-500 cursor-pointer ml-1"
+                      title="삭제"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -157,51 +171,57 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
                 </div>
               </div>
 
-              {/* 제목 및 장소 */}
+              {/* 제목 & 부제목 */}
               <div>
-                <h3 className="text-base font-extrabold text-white leading-snug">
+                <h3 className="text-[17px] font-extrabold text-slate-900 leading-snug tracking-tight">
                   {scenario.title}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">{scenario.subtitle}</p>
+                <p className="text-xs text-slate-500 mt-1 font-medium">{scenario.subtitle}</p>
               </div>
 
-              {/* 왜 안 들리는지 핵심 요약 */}
-              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/90 text-xs text-slate-300 leading-relaxed">
-                <span className="font-bold text-amber-300">🎯 실전 포인트: </span>
+              {/* 왜 점원 말이 안 들리는지 핵심 팁 박스 */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-xs text-slate-600 leading-relaxed">
+                <span className="font-extrabold text-indigo-600">💡 듣기 포인트: </span>
                 {scenario.whyHardToUnderstand}
               </div>
 
-              {/* 핵심 표현 미리보기 */}
-              <div className="space-y-1">
-                {scenario.keyTakeaways.slice(0, 2).map((tip, i) => (
-                  <div key={i} className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                    <Sparkles className="w-3 h-3 text-rose-400 shrink-0" />
-                    <span className="truncate">{tip}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* 역할 선택 진입 버튼 2개 (손님 A vs 종업원 B) */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
+              {/* 역할 선택 버튼 2개 */}
+              <div className="grid grid-cols-2 gap-2.5 pt-0.5">
                 <button
                   onClick={() => onSelectScenario(scenario, 'customer')}
-                  className="py-2.5 px-3 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/40 text-sky-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className={`py-3 px-3.5 rounded-2xl font-extrabold text-xs flex items-center justify-between transition active:scale-[0.98] cursor-pointer ${
+                    progress.customer
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                      : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm shadow-indigo-600/20'
+                  }`}
                 >
-                  <User className="w-3.5 h-3.5 text-sky-400" />
-                  <span>손님(A)으로 대화</span>
-                  {progress.customer && (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="flex items-center gap-1.5">
+                    <User className="w-4 h-4" />
+                    <span>손님(A) 시작</span>
+                  </span>
+                  {progress.customer ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 opacity-80" />
                   )}
                 </button>
 
                 <button
                   onClick={() => onSelectScenario(scenario, 'staff')}
-                  className="py-2.5 px-3 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className={`py-3 px-3.5 rounded-2xl font-extrabold text-xs flex items-center justify-between transition active:scale-[0.98] cursor-pointer ${
+                    progress.staff
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                      : 'bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 text-amber-900'
+                  }`}
                 >
-                  <Store className="w-3.5 h-3.5 text-amber-400" />
-                  <span>종업원(B) 역할 체험</span>
-                  {progress.staff && (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="flex items-center gap-1.5">
+                    <Store className="w-4 h-4 text-amber-600" />
+                    <span>점원(B) 체험</span>
+                  </span>
+                  {progress.staff ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-amber-600" />
                   )}
                 </button>
               </div>
@@ -212,4 +232,3 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
     </div>
   );
 };
-
