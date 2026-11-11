@@ -1376,6 +1376,50 @@ function translateSingleClauseKoToJp(clause: string): {
   if (c.includes('수건') && (c.includes('더') || c.includes('부족') || c.includes('교체'))) {
     return { jp: 'タオルをもう少しいただけますか？', matched: true };
   }
+  if (c.includes('돼지코') || c.includes('변환 플러그') || c.includes('어댑터') || (c.includes('110v') && c.includes('빌'))) {
+    return { jp: 'コンセントの変換プラグをお借りできますか？', matched: true };
+  }
+  if (c.includes('가습기')) {
+    return { jp: '加湿器をお部屋に用意してもらえますか？', matched: true };
+  }
+  if (c.includes('온수') || c.includes('뜨거운 물') || (c.includes('샤워') && c.includes('물'))) {
+    if (c.includes('안 나와') || c.includes('안나와') || c.includes('차가') || c.includes('안 나와서')) {
+      return { jp: 'お湯が出なくてシャワーが浴びられません。確認してもらえますか？', matched: true };
+    }
+  }
+  if (c.includes('변기') && (c.includes('막혔') || c.includes('안 내려') || c.includes('넘쳐') || c.includes('고장'))) {
+    return { jp: 'トイレが詰まって水が流れません。見てもらえますか？', matched: true };
+  }
+  if (c.includes('유카타') || c.includes('가운')) {
+    if (c.includes('큰') || c.includes('작') || c.includes('사이즈')) {
+      return { jp: '浴衣のサイズを変えていただけますか？', matched: true };
+    }
+    return { jp: '浴衣をもう一枚いただけますか？', matched: true };
+  }
+  if (c.includes('사진') && (c.includes('찍어') || c.includes('부탁'))) {
+    if (c.includes('한 번 더') || c.includes('한 장 더')) {
+      return { jp: 'すみません、もう一枚撮っていただけますか？', matched: true };
+    }
+    if (c.includes('가로')) {
+      return { jp: '横向きで写真を撮っていただけますか？', matched: true };
+    }
+    if (c.includes('세로')) {
+      return { jp: '縦向きで写真を撮っていただけますか？', matched: true };
+    }
+    if (c.includes('전신')) {
+      return { jp: '全身が入るように撮ってもらえますか？', matched: true };
+    }
+    return { jp: 'すみません、写真を一枚撮っていただけますか？', matched: true };
+  }
+  if (c.includes('지진') || (c.includes('재난') && c.includes('대피'))) {
+    return { jp: '地震が起きました。どこに避難すればいいですか？', matched: true };
+  }
+  if (c.includes('체했') || (c.includes('소화제') && (c.includes('주세') || c.includes('있나')))) {
+    return { jp: '胃もたれがして気持ち悪いです。胃腸薬（太田胃散）をいただけますか？', matched: true };
+  }
+  if (c.includes('두통') || (c.includes('머리') && c.includes('아파')) || (c.includes('진통제') && c.includes('주세'))) {
+    return { jp: '頭がひどく痛いです。鎮痛剤（EVEなど）はありますか？', matched: true };
+  }
   if (c.includes('금연실') && (c.includes('바꿔') || c.includes('변경'))) {
     return { jp: 'タバコの匂いが気になるので、禁煙ルームに変えてもらえますか？', matched: true };
   }
