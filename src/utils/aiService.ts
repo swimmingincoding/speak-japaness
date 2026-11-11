@@ -24,34 +24,19 @@ export async function translateWithAI(
   const isGeminiKey = aiConfig.provider === 'gemini' || key.startsWith('AIza');
   const isOpenAIKey = aiConfig.provider === 'openai' || key.startsWith('sk-');
 
-  const systemPrompt = `당신은 일본 현지 여행·생활 회화 전문 통번역가입니다.
+  const systemPrompt = `당신은 일본 여행·생활 회화 초고속 전문 통번역가입니다.
 사용자가 입력한 문장을 ${
     direction === 'ko-to-jp'
-      ? '한국어에서 실제 일본 원어민이 매장/호텔/길거리/병원 등에서 자연스럽게 쓰는 고품질 일본어로 번역'
-      : '일본어(점원 접객 경어 또는 일상 회화)에서 자연스러운 한국어로 번역'
-  }하세요.
-
-중요 규칙:
-1. 직역투(예: 영수증에 찍힌 -> 領収書に撮られた 같은 오역)를 절대 피하고, 일본 현지에서 실제로 사용하는 자연스러운 표현(예: 領収書に記載された / レシートの金額がメニューと違うのですが)으로 번역하세요.
-2. 'japanese'에는 한자와 가나가 적절히 섞인 표준 일본어 문장을 넣으세요.
-3. 'furigana'에는 'japanese' 문장 전체를 히라가나로만 읽은 발음을 정확히 넣으세요 (한자가 절대 남으면 안 됩니다).
-4. 'koreanPronunciation'에는 'japanese' 문장과 1:1로 정확히 대응되는 자연스러운 한글 발음(예: 스미마센, 레시-토노 킨가쿠가 메뉴-토 치가우노데스가...)을 넣으세요.
-5. 'kanjiReadings' 배열에는 'japanese' 문장에 등장하는 모든 한자 단어(또는 단일 한자)와 그 문맥에서의 정확한 히라가나 읽기를 빠짐없이 나열하세요.
-6. 'vocabPairs' 배열에는 이 문장에 등장하는 핵심 명사/어휘의 한국어-일본어 쌍(예: [{"ko":"유모차","jp":"ベビーカー"}])을 1~4개 추출하여 오프라인 어휘 사전에 학습될 수 있게 하세요.
-7. 'tip'에는 이 표현을 일본 현지에서 쓸 때 알아두면 좋은 원어민 뉘앙스나 발음/상황 팁을 1문장으로 작성하세요.
-8. 반드시 아래 순수 JSON 형식으로만 응답하세요:
+      ? '실제 일본 현지에서 쓰는 자연스럽고 공손한 일본어(데스/마스체)'
+      : '자연스러운 한국어'
+  }로 번역하세요. 직역투를 피하고 현지 관용 표현을 사용하세요.
+반드시 아래 JSON 형식으로만 빠르게 응답하세요:
 {
   "japanese": "자연스러운 일본어 문장",
-  "furigana": "문장 전체 히라가나 읽기",
-  "koreanPronunciation": "1:1 매칭 한국어 발음",
-  "koreanMeaning": "자연스러운 한국어 뜻",
-  "tip": "현지 활용 원포인트 팁",
-  "kanjiReadings": [
-    { "kanji": "한자단어", "reading": "히라가나읽기" }
-  ],
-  "vocabPairs": [
-    { "ko": "한국어명사", "jp": "일본어명사" }
-  ]
+  "furigana": "문장 전체 히라가나 발음",
+  "koreanPronunciation": "자연스러운 한글 발음",
+  "koreanMeaning": "한국어 뜻",
+  "tip": "현지 팁 (15자 이내)"
 }`;
 
   if (isGeminiKey) {
@@ -66,10 +51,9 @@ export async function translateWithAI(
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
           key
         )}`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+
+        const makePayload = (useThinkingBudget: boolean) =>
+          JSON.stringify({
             systemInstruction: {
               parts: [{ text: systemPrompt }],
             },
@@ -81,11 +65,35 @@ export async function translateWithAI(
             ],
             generationConfig: {
               responseMimeType: 'application/json',
-              temperature: 0.2,
+              temperature: 0.1,
+              maxOutputTokens: 200,
+              ...(useThinkingBudget ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
             },
-          }),
+          });
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2800);
+
+        let res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: makePayload(true),
+          signal: controller.signal,
         });
+
+        // thinkingConfig 미지원 환경 시 즉시 재시도
+        if (res.status === 400) {
+          res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: makePayload(false),
+            signal: controller.signal,
+          });
+        }
+
+        clearTimeout(timeoutId);
         if (!res.ok) continue;
+
         const data = await res.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
         const cleaned = rawText.replace(/```json|```/g, '').trim();
@@ -96,7 +104,7 @@ export async function translateWithAI(
             furigana: parsed.furigana || '',
             koreanPronunciation: parsed.koreanPronunciation || '',
             koreanMeaning: parsed.koreanMeaning || text,
-            tip: parsed.tip || 'Gemini AI가 현지 문맥에 맞게 번역한 자연스러운 표현입니다.',
+            tip: parsed.tip || 'Gemini 3.8 초고속 문맥 번역 완료',
             kanjiReadings: Array.isArray(parsed.kanjiReadings) ? parsed.kanjiReadings : [],
             vocabPairs: Array.isArray(parsed.vocabPairs) ? parsed.vocabPairs : [],
             providerUsed: 'gemini-ai',

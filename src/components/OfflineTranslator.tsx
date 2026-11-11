@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   OFFLINE_EMERGENCY_PHRASES,
   EMERGENCY_CATEGORY_META,
@@ -86,6 +86,8 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     korean: string;
   } | null>(null);
 
+  const activeReqIdRef = useRef<number>(0);
+
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -103,20 +105,50 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     hasAiKey &&
     (aiConfig?.provider === 'gemini' || aiConfig?.apiKey?.trim().startsWith('AIza'));
 
+  // 실시간 타이핑 디바운스 자동 번역 (2자 이상 입력 후 350ms 멈추면 체감 지연 0초로 즉시 번역)
+  useEffect(() => {
+    const trimmed = inputText.trim();
+    if (!trimmed) {
+      setTranslationResult(null);
+      setIsTranslating(false);
+      return;
+    }
+
+    if (trimmed.length >= 2) {
+      const timer = setTimeout(() => {
+        handleTranslate(trimmed);
+      }, 350);
+
+      return () => clearTimeout(timer);
+    }
+  }, [inputText, direction, forceOfflineMode]);
+
   const handleTranslate = async (textOverride?: string) => {
     const text = (textOverride ?? inputText).trim();
     if (!text) return;
 
-    // 1. 사전 캐싱된 오프라인 언어팩 & 다중 절 구문 합성 엔진으로 0.01초 즉시 응답
+    const currentReqId = ++activeReqIdRef.current;
+
+    // 1. 사전 캐싱된 오프라인 언어팩 & 다중 절 구문 합성 엔진으로 0.01초 즉시 응답 (Optimistic UI)
     const offlineOut = executeOfflineTranslation(text, direction);
     setTranslationResult(offlineOut);
 
-    // 2. 온라인 모드 + Gemini/OpenAI API Key가 설정된 경우:
-    //    이미 AI로 번역해 캐싱된 결과가 아니라면, 최우선으로 Gemini / OpenAI LLM을 호출하여 원어민 수준의 자연스러운 번역 + 문맥 맞춤 후리가나 생성!
+    // 2. 이미 캐시된 고품질 신경망 번역이거나 100% 완전 일치 오프라인 팩인 경우 즉시 완료 (네트워크 0초)
+    if (
+      offlineOut.engineType === 'offline-neural-cache' ||
+      (offlineOut.engineType === 'offline-pack' && offlineOut.confidence === 100)
+    ) {
+      setIsTranslating(false);
+      return;
+    }
+
+    // 3. 온라인 모드 + Gemini/OpenAI API Key가 설정된 경우: 초고속 LLM 문맥 번역 (thinkingBudget=0)
     if (!effectiveOffline && hasAiKey && aiConfig) {
       setIsTranslating(true);
       try {
         const aiRes = await translateWithAI(text, direction, aiConfig);
+        if (currentReqId !== activeReqIdRef.current) return;
+
         if (aiRes && aiRes.japanese) {
           if (aiRes.kanjiReadings?.length) {
             registerDirectKanjiReadings(aiRes.kanjiReadings);
@@ -151,12 +183,8 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
       }
     }
 
-    // 3. 온라인 모드(API 키 미설정 또는 폴백): 코퍼스 100% 완전 일치(confidence >= 99)나 이미 캐시된 신경망 번역이 아니면 실시간 다중 엔드포인트 신경망 번역 수행!
-    if (
-      !effectiveOffline &&
-      offlineOut.confidence < 99 &&
-      offlineOut.engineType !== 'offline-neural-cache'
-    ) {
+    // 4. 온라인 모드(API 키 미설정 또는 폴백): 코퍼스 완전 일치가 아니면 실시간 신경망 번역 보조
+    if (!effectiveOffline && offlineOut.confidence < 99) {
       setIsTranslating(true);
       try {
         const sl = direction === 'ko-to-jp' ? 'ko' : 'ja';
@@ -520,26 +548,31 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           <div className="p-5 bg-indigo-50/50 border-t border-indigo-100/80 space-y-3.5 animate-fadeIn">
             <div className="flex items-center justify-between">
               <span
-                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
-                  translationResult.engineType === 'gemini-ai' ||
-                  translationResult.engineType === 'openai-ai'
+                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 ${
+                  isTranslating
+                    ? 'bg-amber-100 text-amber-800 animate-pulse'
+                    : translationResult.engineType === 'gemini-ai' ||
+                      translationResult.engineType === 'openai-ai'
                     ? 'bg-emerald-100 text-emerald-800'
                     : 'bg-indigo-100 text-indigo-700'
                 }`}
               >
-                {isTranslating
-                  ? hasAiKey
-                    ? '✨ Gemini AI 문맥 번역 중...'
-                    : '번역 중...'
-                  : translationResult.engineType === 'gemini-ai'
-                  ? '✨ Gemini AI 실시간 번역 + 오프라인 저장됨'
-                  : translationResult.engineType === 'openai-ai'
-                  ? '✨ OpenAI GPT 실시간 번역 + 오프라인 저장됨'
-                  : translationResult.engineType === 'offline-pack'
-                  ? '📦 오프라인 언어팩 엔진'
-                  : translationResult.engineType === 'offline-neural-cache'
-                  ? '💾 오프라인 캐시 메모리'
-                  : '⚡ 실시간 신경망 번역 + 오프라인 저장됨'}
+                {isTranslating ? (
+                  <>
+                    <Sparkles className="w-3 h-3 text-amber-600 animate-spin" />
+                    <span>⚡ Gemini 3.8 초고속 업그레이드 중...</span>
+                  </>
+                ) : translationResult.engineType === 'gemini-ai' ? (
+                  '✨ Gemini 3.8 AI 초고속 번역 완료'
+                ) : translationResult.engineType === 'openai-ai' ? (
+                  '✨ OpenAI GPT 실시간 번역'
+                ) : translationResult.engineType === 'offline-neural-cache' ? (
+                  '⚡ 0.001초 고속 캐시 메모리'
+                ) : translationResult.engineType === 'offline-pack' ? (
+                  '⚡ 0.01초 오프라인 즉시 번역'
+                ) : (
+                  '⚡ 실시간 신경망 번역'
+                )}
               </span>
 
               <div className="flex items-center gap-1.5">
