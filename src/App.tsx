@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import {
   Scenario,
   RoleType,
@@ -8,13 +8,7 @@ import {
 } from './types/conversation';
 import { SCENARIOS } from './data/scenarios';
 import { ScenarioList } from './components/ScenarioList';
-import { RolePlayRoom } from './components/RolePlayRoom';
-import { KeigoGuide } from './components/KeigoGuide';
-import { SavedExpressions } from './components/SavedExpressions';
 import { OfflineTranslator } from './components/OfflineTranslator';
-import { N3StudyRoom } from './components/N3StudyRoom';
-import { SettingsModal } from './components/SettingsModal';
-import { CustomScenarioModal } from './components/CustomScenarioModal';
 import { stopSpeaking } from './utils/speech';
 import {
   Headphones,
@@ -23,7 +17,35 @@ import {
   MessageSquareText,
   Languages,
   GraduationCap,
+  Loader2,
 } from 'lucide-react';
+
+// 성능 최적화: 코드 스플리팅으로 초기 번들 다운로드 용량을 줄이고 탭 전환 시 온디맨드 로딩
+const RolePlayRoom = lazy(() =>
+  import('./components/RolePlayRoom').then((m) => ({ default: m.RolePlayRoom }))
+);
+const KeigoGuide = lazy(() =>
+  import('./components/KeigoGuide').then((m) => ({ default: m.KeigoGuide }))
+);
+const SavedExpressions = lazy(() =>
+  import('./components/SavedExpressions').then((m) => ({ default: m.SavedExpressions }))
+);
+const N3StudyRoom = lazy(() =>
+  import('./components/N3StudyRoom').then((m) => ({ default: m.N3StudyRoom }))
+);
+const SettingsModal = lazy(() =>
+  import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
+);
+const CustomScenarioModal = lazy(() =>
+  import('./components/CustomScenarioModal').then((m) => ({ default: m.CustomScenarioModal }))
+);
+
+const TabLoadingFallback = () => (
+  <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-400 animate-fadeIn">
+    <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+    <span className="text-xs font-bold">콘텐츠 준비 중...</span>
+  </div>
+);
 
 const STORAGE_KEYS = {
   DISPLAY: 'tabitalk_display_settings_v1',
@@ -234,83 +256,85 @@ export const App: React.FC = () => {
 
         {/* 메인 콘텐츠 영역 */}
         <main className={selectedScenario ? 'flex-1' : 'flex-1 px-4 pt-4'}>
-          {selectedScenario ? (
-            <RolePlayRoom
-              scenario={selectedScenario}
-              initialRole={selectedInitialRole}
-              initialMode={selectedInitialMode}
-              displaySettings={displaySettings}
-              onUpdateDisplay={setDisplaySettings}
-              aiConfig={aiConfig}
-              savedIds={savedIds}
-              onToggleSave={handleToggleSave}
-              completedRoles={
-                completedMap[selectedScenario.id] || { customer: false, staff: false }
-              }
-              onMarkCompleted={handleMarkCompleted}
-              onBack={() => {
-                stopSpeaking();
-                setSelectedScenario(null);
-              }}
-            />
-          ) : (
-            <>
-              {activeTab === 'scenarios' && (
-                <ScenarioList
-                  scenarios={allScenarios}
-                  completedMap={completedMap}
-                  onSelectScenario={(scenario, role) => {
-                    stopSpeaking();
-                    setSelectedInitialMode('guided');
-                    setSelectedInitialRole(role);
-                    setSelectedScenario(scenario);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  onGoKeigoTab={() => handleSwitchTab('keigo')}
-                  onOpenCustomModal={() => setIsCustomModalOpen(true)}
-                  onDeleteCustomScenario={handleDeleteCustomScenario}
-                  onStartFreeTalk={() => {
-                    stopSpeaking();
-                    setSelectedInitialRole('customer');
-                    setSelectedInitialMode('freetalk');
-                    setSelectedScenario(allScenarios[0]);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                />
-              )}
-              {activeTab === 'translator' && (
-                <OfflineTranslator
-                  ttsSpeed={displaySettings.ttsSpeed}
-                  showFurigana={displaySettings.showFurigana}
-                  aiConfig={aiConfig}
-                  onOpenSettings={() => setIsSettingsOpen(true)}
-                  onSaveExpression={handleToggleSave}
-                />
-              )}
-              {activeTab === 'n3' && (
-                <N3StudyRoom
-                  ttsSpeed={displaySettings.ttsSpeed}
-                  masteredIds={n3MasteredSet}
-                  onToggleMastered={handleToggleN3Mastered}
-                />
-              )}
-              {activeTab === 'keigo' && (
-                <KeigoGuide ttsSpeed={displaySettings.ttsSpeed} />
-              )}
-              {activeTab === 'saved' && (
-                <SavedExpressions
-                  savedList={savedExpressions}
-                  onRemove={handleRemoveSaved}
-                  ttsSpeed={displaySettings.ttsSpeed}
-                />
-              )}
-            </>
-          )}
+          <Suspense fallback={<TabLoadingFallback />}>
+            {selectedScenario ? (
+              <RolePlayRoom
+                scenario={selectedScenario}
+                initialRole={selectedInitialRole}
+                initialMode={selectedInitialMode}
+                displaySettings={displaySettings}
+                onUpdateDisplay={setDisplaySettings}
+                aiConfig={aiConfig}
+                savedIds={savedIds}
+                onToggleSave={handleToggleSave}
+                completedRoles={
+                  completedMap[selectedScenario.id] || { customer: false, staff: false }
+                }
+                onMarkCompleted={handleMarkCompleted}
+                onBack={() => {
+                  stopSpeaking();
+                  setSelectedScenario(null);
+                }}
+              />
+            ) : (
+              <>
+                {activeTab === 'scenarios' && (
+                  <ScenarioList
+                    scenarios={allScenarios}
+                    completedMap={completedMap}
+                    onSelectScenario={(scenario, role) => {
+                      stopSpeaking();
+                      setSelectedInitialMode('guided');
+                      setSelectedInitialRole(role);
+                      setSelectedScenario(scenario);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    onGoKeigoTab={() => handleSwitchTab('keigo')}
+                    onOpenCustomModal={() => setIsCustomModalOpen(true)}
+                    onDeleteCustomScenario={handleDeleteCustomScenario}
+                    onStartFreeTalk={() => {
+                      stopSpeaking();
+                      setSelectedInitialRole('customer');
+                      setSelectedInitialMode('freetalk');
+                      setSelectedScenario(allScenarios[0]);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                )}
+                {activeTab === 'translator' && (
+                  <OfflineTranslator
+                    ttsSpeed={displaySettings.ttsSpeed}
+                    showFurigana={displaySettings.showFurigana}
+                    aiConfig={aiConfig}
+                    onOpenSettings={() => setIsSettingsOpen(true)}
+                    onSaveExpression={handleToggleSave}
+                  />
+                )}
+                {activeTab === 'n3' && (
+                  <N3StudyRoom
+                    ttsSpeed={displaySettings.ttsSpeed}
+                    masteredIds={n3MasteredSet}
+                    onToggleMastered={handleToggleN3Mastered}
+                  />
+                )}
+                {activeTab === 'keigo' && (
+                  <KeigoGuide ttsSpeed={displaySettings.ttsSpeed} />
+                )}
+                {activeTab === 'saved' && (
+                  <SavedExpressions
+                    savedList={savedExpressions}
+                    onRemove={handleRemoveSaved}
+                    ttsSpeed={displaySettings.ttsSpeed}
+                  />
+                )}
+              </>
+            )}
+          </Suspense>
         </main>
 
-        {/* 하단 모던 탭 네비게이션 */}
+        {/* 하단 모던 탭 네비게이션 (모바일 Safe-Area 대응) */}
         {!selectedScenario && (
-          <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/80 px-2 py-2 grid grid-cols-5 gap-1 shadow-[0_-4px_20px_rgba(15,23,42,0.05)]">
+          <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/80 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom,10px)+0.35rem)] grid grid-cols-5 gap-1 shadow-[0_-4px_20px_rgba(15,23,42,0.05)]">
             {(
               [
                 { id: 'scenarios', label: '실전회화', icon: MessageSquareText },
@@ -345,22 +369,26 @@ export const App: React.FC = () => {
         )}
 
         {/* 설정 모달 */}
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          displaySettings={displaySettings}
-          onUpdateDisplay={setDisplaySettings}
-          aiConfig={aiConfig}
-          onUpdateAI={setAiConfig}
-        />
+        <Suspense fallback={null}>
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            displaySettings={displaySettings}
+            onUpdateDisplay={setDisplaySettings}
+            aiConfig={aiConfig}
+            onUpdateAI={setAiConfig}
+          />
+        </Suspense>
 
         {/* 나만의 여행 상황 만들기 모달 */}
-        <CustomScenarioModal
-          isOpen={isCustomModalOpen}
-          onClose={() => setIsCustomModalOpen(false)}
-          aiConfig={aiConfig}
-          onCreateScenario={handleCreateCustomScenario}
-        />
+        <Suspense fallback={null}>
+          <CustomScenarioModal
+            isOpen={isCustomModalOpen}
+            onClose={() => setIsCustomModalOpen(false)}
+            aiConfig={aiConfig}
+            onCreateScenario={handleCreateCustomScenario}
+          />
+        </Suspense>
       </div>
     </div>
   );

@@ -329,7 +329,10 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     const SpeechRecognitionClass =
       (window as unknown as Record<string, unknown>).SpeechRecognition ||
       (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
-    if (!SpeechRecognitionClass) return;
+    if (!SpeechRecognitionClass) {
+      alert('현재 브라우저 환경에서 마이크 음성 인식을 지원하지 않습니다. Chrome 또는 Safari 브라우저를 권장합니다.');
+      return;
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rec = new (SpeechRecognitionClass as any)();
@@ -677,8 +680,22 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
 
             {/* 1:1 매칭 한글 발음 및 한국어 의미 */}
             <div className="p-3.5 rounded-2xl bg-white border border-indigo-100/90 space-y-1">
-              <div className="text-xs font-extrabold text-indigo-700">
-                발음: [{translationResult.koreanPronunciation}]
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-extrabold text-indigo-700">
+                  발음: [{translationResult.koreanPronunciation}]
+                </div>
+                <button
+                  onClick={() =>
+                    handleCopyText(
+                      `${translationResult.japanese} [${translationResult.koreanPronunciation}]`
+                    )
+                  }
+                  className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer"
+                  title="일본어 문장과 발음을 함께 복사"
+                >
+                  <Copy className="w-3 h-3" />
+                  <span>발음함께 복사</span>
+                </button>
               </div>
               <div className="text-xs text-slate-500">
                 히라가나: {translationResult.furigana}

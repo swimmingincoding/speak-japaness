@@ -2375,9 +2375,19 @@ export function saveNeuralCache(
     const raw = localStorage.getItem(NEURAL_CACHE_KEY);
     const map: Record<string, TranslationOutput> = raw ? JSON.parse(raw) : {};
     map[`${direction}:${source.trim()}`] = output;
+
+    // LRU 방어: 250개 초과 시 오래된 캐시 정리하여 모바일 LocalStorage 용량 초과 방지
+    const keys = Object.keys(map);
+    if (keys.length > 250) {
+      const keysToDelete = keys.slice(0, keys.length - 250);
+      for (const k of keysToDelete) {
+        delete map[k];
+      }
+    }
+
     localStorage.setItem(NEURAL_CACHE_KEY, JSON.stringify(map));
   } catch {
-    // ignore
+    // QuotaExceededError 등 발생 시 방어
   }
 }
 

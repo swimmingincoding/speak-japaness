@@ -1047,7 +1047,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
       {/* 3. 하단 고정 액션 컨트롤러 (현대적 모바일 플로팅 독) */}
       {/* ======================================================== */}
       {mode === 'guided' && !isFinished && currentTurn && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] px-4 py-3">
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,12px)+0.5rem)]">
           <div className="w-full space-y-2.5">
             {/* Case A: 파트너 턴일 때 (상대방의 말을 듣고 이해) */}
             {currentTurn.speaker !== userRole ? (
@@ -1207,7 +1207,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
 
       {/* FreeTalk Mode 전용 하단 고정 입력창 */}
       {mode === 'freetalk' && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-4 py-2.5 shadow-[0_-8px_30px_rgba(0,0,0,0.06)]">
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-4 pt-2.5 pb-[calc(env(safe-area-inset-bottom,12px)+0.4rem)] shadow-[0_-8px_30px_rgba(0,0,0,0.06)]">
           <div className="w-full space-y-2">
             {/* 추천 답변 칩 */}
             {lastFreePartnerMsg?.suggestedReplies &&
