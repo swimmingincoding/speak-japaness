@@ -23,6 +23,7 @@ import { executeOfflineTranslation } from '../utils/offlineEngine';
 import { generatePartnerReply, generateCustomTopicOpening, translateWithAI } from '../utils/aiService';
 import { CURATED_FREETALK_TOPICS, FreeTalkTopic, createCustomTopic } from '../data/freeTalkTopics';
 import { FuriganaText } from './FuriganaText';
+import { LiveCallModal } from './LiveCallModal';
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -48,6 +49,7 @@ import {
   SlidersHorizontal,
   X,
   Plus,
+  Phone,
 } from 'lucide-react';
 
 interface RolePlayRoomProps {
@@ -91,6 +93,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState<boolean>(false);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState<boolean>(false);
+  const [isCallModalOpen, setIsCallModalOpen] = useState<boolean>(false);
 
   const [freeMessages, setFreeMessages] = useState<FreeTalkMessage[]>([]);
   const [freeInput, setFreeInput] = useState<string>('');
@@ -465,6 +468,14 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setIsCallModalOpen(true)}
+              className="flex items-center gap-1 text-[11px] font-extrabold text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 py-1.5 px-2.5 rounded-xl transition cursor-pointer shadow-sm shadow-emerald-500/20 active:scale-95"
+              title="실시간 전화 통화형 음성 AI 롤플레잉"
+            >
+              <Phone className="w-3 h-3 fill-current" />
+              <span>전화 통화</span>
+            </button>
             <button
               onClick={handlePlayAllDialogue}
               className="flex items-center gap-1 text-[11px] font-extrabold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-1.5 px-2.5 rounded-xl transition cursor-pointer"
@@ -1396,6 +1407,17 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
           </div>
         </div>
       )}
+
+      {/* 실시간 전화 통화형 음성 AI 롤플레잉 모달 */}
+      <LiveCallModal
+        isOpen={isCallModalOpen}
+        onClose={() => setIsCallModalOpen(false)}
+        scenario={scenario}
+        userRole={userRole}
+        aiConfig={aiConfig}
+        ttsSpeed={displaySettings.ttsSpeed}
+        onSaveExpression={onToggleSave}
+      />
     </div>
   );
 };
