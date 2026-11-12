@@ -2,13 +2,14 @@ import React from 'react';
 import { SavedExpression } from '../types/conversation';
 import { speakJapanese } from '../utils/speech';
 import { FuriganaText } from './FuriganaText';
-import { Bookmark, Trash2, Volume2, User, Store, Ticket, Download, Sparkles } from 'lucide-react';
+import { Bookmark, Trash2, Volume2, User, Store, Ticket, Download, Sparkles, Flame, Brain } from 'lucide-react';
 
 interface SavedExpressionsProps {
   savedList: SavedExpression[];
   onRemove: (id: string) => void;
   ttsSpeed: number;
   onOpenCheatSheet?: () => void;
+  onOpenDailyReview?: () => void;
 }
 
 export const SavedExpressions: React.FC<SavedExpressionsProps> = ({
@@ -16,6 +17,7 @@ export const SavedExpressions: React.FC<SavedExpressionsProps> = ({
   onRemove,
   ttsSpeed,
   onOpenCheatSheet,
+  onOpenDailyReview,
 }) => {
   if (savedList.length === 0) {
     return (
@@ -67,6 +69,36 @@ export const SavedExpressions: React.FC<SavedExpressionsProps> = ({
           </button>
         )}
       </div>
+
+      {/* 망각곡선 일일 복습 배너 */}
+      {onOpenDailyReview && (
+        <div
+          onClick={onOpenDailyReview}
+          className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white shadow-md flex items-center justify-between cursor-pointer group hover:opacity-95 transition"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white font-black text-base group-hover:scale-105 transition shadow-2xs">
+              🔥
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-xs text-white">
+                  망각곡선 일일 복습 (오늘 5개)
+                </span>
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-white text-orange-600">
+                  스트릭 유지
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-100 font-medium">
+                플래시카드로 복습하고 연속 학습 스트릭을 이어가세요!
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-bold text-white group-hover:translate-x-0.5 transition shrink-0">
+            복습 시작 →
+          </span>
+        </div>
+      )}
 
       {/* 치트시트 추천 배너 */}
       {onOpenCheatSheet && (

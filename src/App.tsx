@@ -10,6 +10,7 @@ import { SCENARIOS } from './data/scenarios';
 import { ScenarioList } from './components/ScenarioList';
 import { OfflineTranslator } from './components/OfflineTranslator';
 import { stopSpeaking } from './utils/speech';
+import { loadUserStreak } from './utils/srsEngine';
 import {
   Headphones,
   Bookmark,
@@ -18,6 +19,7 @@ import {
   Languages,
   GraduationCap,
   Loader2,
+  Flame,
 } from 'lucide-react';
 
 // 성능 최적화: 코드 스플리팅으로 초기 번들 다운로드 용량을 줄이고 탭 전환 시 온디맨드 로딩
@@ -48,6 +50,9 @@ const TravelCheatSheetModal = lazy(() =>
 const CameraMenuScannerModal = lazy(() =>
   import('./components/CameraMenuScannerModal').then((m) => ({ default: m.CameraMenuScannerModal }))
 );
+const DailyReviewModal = lazy(() =>
+  import('./components/DailyReviewModal').then((m) => ({ default: m.DailyReviewModal }))
+);
 
 const TabLoadingFallback = () => (
   <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-400 animate-fadeIn">
@@ -77,6 +82,8 @@ export const App: React.FC = () => {
   const [isYenCalculatorOpen, setIsYenCalculatorOpen] = useState<boolean>(false);
   const [isCheatSheetOpen, setIsCheatSheetOpen] = useState<boolean>(false);
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState<boolean>(false);
+  const [isDailyReviewOpen, setIsDailyReviewOpen] = useState<boolean>(false);
+  const [streakData, setStreakData] = useState(() => loadUserStreak());
 
   const [customScenarios, setCustomScenarios] = useState<Scenario[]>(() => {
     try {
@@ -258,13 +265,23 @@ export const App: React.FC = () => {
 
             <div className="flex items-center gap-1.5 sm:gap-2">
               <button
+                onClick={() => setIsDailyReviewOpen(true)}
+                className="px-2 sm:px-2.5 py-2 rounded-2xl bg-orange-50 hover:bg-orange-100 border border-orange-200/80 flex items-center gap-1 text-slate-800 transition cursor-pointer shadow-2xs group"
+                title="망각곡선 일일 복습 & 연속 학습 스트릭"
+              >
+                <Flame className="w-4 h-4 text-orange-500 fill-orange-500 group-hover:scale-110 transition" />
+                <span className="text-xs font-black text-orange-950">
+                  {streakData.currentStreak}일
+                </span>
+              </button>
+
+              <button
                 onClick={() => setIsCameraScannerOpen(true)}
                 className="px-2 sm:px-2.5 py-2 rounded-2xl bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-200/80 flex items-center gap-1 text-slate-800 transition cursor-pointer shadow-2xs"
                 title="카메라 메뉴판 · 간판 Gemini Vision AI 스캐너"
               >
                 <span className="text-sm">📷</span>
-                <span className="text-xs font-black text-indigo-900 hidden sm:inline">메뉴판 AI</span>
-                <span className="text-xs font-black text-indigo-900 sm:hidden">스캔</span>
+                <span className="text-xs font-black text-indigo-900 hidden sm:inline">스캔</span>
               </button>
 
               <button
@@ -273,8 +290,7 @@ export const App: React.FC = () => {
                 title="현지 엔화 환율 · 소비세(10%) · 와리깡 계산기"
               >
                 <span className="text-sm">💴</span>
-                <span className="text-xs font-black text-amber-900 hidden sm:inline">엔화 계산기</span>
-                <span className="text-xs font-black text-amber-900 sm:hidden">계산기</span>
+                <span className="text-xs font-black text-amber-900 hidden sm:inline">계산기</span>
               </button>
 
               <button
@@ -362,6 +378,7 @@ export const App: React.FC = () => {
                     onRemove={handleRemoveSaved}
                     ttsSpeed={displaySettings.ttsSpeed}
                     onOpenCheatSheet={() => setIsCheatSheetOpen(true)}
+                    onOpenDailyReview={() => setIsDailyReviewOpen(true)}
                   />
                 )}
               </>
@@ -451,6 +468,19 @@ export const App: React.FC = () => {
             onClose={() => setIsCameraScannerOpen(false)}
             aiConfig={aiConfig}
             onSaveExpression={handleToggleSave}
+          />
+        </Suspense>
+
+        {/* 에빙하우스 망각곡선 일일 복습 & 스트릭 모달 */}
+        <Suspense fallback={null}>
+          <DailyReviewModal
+            isOpen={isDailyReviewOpen}
+            onClose={() => {
+              setIsDailyReviewOpen(false);
+              setStreakData(loadUserStreak());
+            }}
+            savedExpressions={savedExpressions}
+            ttsSpeed={displaySettings.ttsSpeed}
           />
         </Suspense>
       </div>
