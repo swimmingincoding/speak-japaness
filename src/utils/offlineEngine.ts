@@ -2342,16 +2342,24 @@ const NEURAL_CACHE_KEY = 'tabitalk_offline_neural_cache_v3';
 const OFFLINE_PACK_STATUS_KEY = 'tabitalk_offline_pack_installed_v3';
 
 export function getOfflinePackStats(): OfflinePackStats {
+  const isStorageAvailable = typeof localStorage !== 'undefined';
   const installedTime =
-    localStorage.getItem(OFFLINE_PACK_STATUS_KEY) || new Date().toISOString();
-  if (!localStorage.getItem(OFFLINE_PACK_STATUS_KEY)) {
-    localStorage.setItem(OFFLINE_PACK_STATUS_KEY, installedTime);
+    (isStorageAvailable ? localStorage.getItem(OFFLINE_PACK_STATUS_KEY) : null) ||
+    new Date().toISOString();
+  if (isStorageAvailable && !localStorage.getItem(OFFLINE_PACK_STATUS_KEY)) {
+    try {
+      localStorage.setItem(OFFLINE_PACK_STATUS_KEY, installedTime);
+    } catch {
+      // ignore
+    }
   }
   let cachedCount = 0;
   try {
-    const raw = localStorage.getItem(NEURAL_CACHE_KEY);
-    if (raw) {
-      cachedCount = Object.keys(JSON.parse(raw)).length;
+    if (isStorageAvailable) {
+      const raw = localStorage.getItem(NEURAL_CACHE_KEY);
+      if (raw) {
+        cachedCount = Object.keys(JSON.parse(raw)).length;
+      }
     }
   } catch {
     // ignore
