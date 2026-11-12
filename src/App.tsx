@@ -42,6 +42,9 @@ const CustomScenarioModal = lazy(() =>
 const YenCalculatorModal = lazy(() =>
   import('./components/YenCalculatorModal').then((m) => ({ default: m.YenCalculatorModal }))
 );
+const TravelCheatSheetModal = lazy(() =>
+  import('./components/TravelCheatSheetModal').then((m) => ({ default: m.TravelCheatSheetModal }))
+);
 
 const TabLoadingFallback = () => (
   <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-400 animate-fadeIn">
@@ -69,6 +72,7 @@ export const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState<boolean>(false);
   const [isYenCalculatorOpen, setIsYenCalculatorOpen] = useState<boolean>(false);
+  const [isCheatSheetOpen, setIsCheatSheetOpen] = useState<boolean>(false);
 
   const [customScenarios, setCustomScenarios] = useState<Scenario[]>(() => {
     try {
@@ -342,6 +346,7 @@ export const App: React.FC = () => {
                     savedList={savedExpressions}
                     onRemove={handleRemoveSaved}
                     ttsSpeed={displaySettings.ttsSpeed}
+                    onOpenCheatSheet={() => setIsCheatSheetOpen(true)}
                   />
                 )}
               </>
@@ -412,6 +417,15 @@ export const App: React.FC = () => {
           <YenCalculatorModal
             isOpen={isYenCalculatorOpen}
             onClose={() => setIsYenCalculatorOpen(false)}
+          />
+        </Suspense>
+
+        {/* 나만의 여행 치트시트 1장 고화질 이미지(PNG) 내보내기 모달 */}
+        <Suspense fallback={null}>
+          <TravelCheatSheetModal
+            isOpen={isCheatSheetOpen}
+            onClose={() => setIsCheatSheetOpen(false)}
+            savedList={savedExpressions}
           />
         </Suspense>
       </div>
