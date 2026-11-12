@@ -39,6 +39,9 @@ const SettingsModal = lazy(() =>
 const CustomScenarioModal = lazy(() =>
   import('./components/CustomScenarioModal').then((m) => ({ default: m.CustomScenarioModal }))
 );
+const YenCalculatorModal = lazy(() =>
+  import('./components/YenCalculatorModal').then((m) => ({ default: m.YenCalculatorModal }))
+);
 
 const TabLoadingFallback = () => (
   <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-400 animate-fadeIn">
@@ -65,6 +68,7 @@ export const App: React.FC = () => {
   const [selectedInitialMode, setSelectedInitialMode] = useState<'guided' | 'freetalk'>('guided');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState<boolean>(false);
+  const [isYenCalculatorOpen, setIsYenCalculatorOpen] = useState<boolean>(false);
 
   const [customScenarios, setCustomScenarios] = useState<Scenario[]>(() => {
     try {
@@ -244,13 +248,25 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200/70 flex items-center justify-center text-slate-700 transition cursor-pointer"
-              title="학습 및 AI 설정"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsYenCalculatorOpen(true)}
+                className="px-2.5 py-2 rounded-2xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 flex items-center gap-1.5 text-slate-800 transition cursor-pointer shadow-2xs"
+                title="현지 엔화 환율 · 소비세(10%) · 와리깡 계산기"
+              >
+                <span className="text-sm">💴</span>
+                <span className="text-xs font-black text-amber-900 hidden sm:inline">엔화 계산기</span>
+                <span className="text-xs font-black text-amber-900 sm:hidden">계산기</span>
+              </button>
+
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200/70 flex items-center justify-center text-slate-700 transition cursor-pointer"
+                title="학습 및 AI 설정"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+              </button>
+            </div>
           </header>
         )}
 
@@ -308,6 +324,7 @@ export const App: React.FC = () => {
                     aiConfig={aiConfig}
                     onOpenSettings={() => setIsSettingsOpen(true)}
                     onSaveExpression={handleToggleSave}
+                    onOpenYenCalculator={() => setIsYenCalculatorOpen(true)}
                   />
                 )}
                 {activeTab === 'n3' && (
@@ -387,6 +404,14 @@ export const App: React.FC = () => {
             onClose={() => setIsCustomModalOpen(false)}
             aiConfig={aiConfig}
             onCreateScenario={handleCreateCustomScenario}
+          />
+        </Suspense>
+
+        {/* 현지 엔화 환율 · 소비세(10%) · 와리깡(더치페이) 계산기 모달 */}
+        <Suspense fallback={null}>
+          <YenCalculatorModal
+            isOpen={isYenCalculatorOpen}
+            onClose={() => setIsYenCalculatorOpen(false)}
           />
         </Suspense>
       </div>
