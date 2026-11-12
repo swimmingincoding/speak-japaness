@@ -53,6 +53,7 @@ interface OfflineTranslatorProps {
   onOpenSettings?: () => void;
   onSaveExpression?: (expr: SavedExpression) => void;
   onOpenYenCalculator?: () => void;
+  onOpenCameraScanner?: () => void;
 }
 
 export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
@@ -62,6 +63,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   onOpenSettings,
   onSaveExpression,
   onOpenYenCalculator,
+  onOpenCameraScanner,
 }) => {
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true
@@ -423,35 +425,66 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
         </button>
       </div>
 
-      {/* 여행 편의 도구: 현지 엔화 환율 · 소비세(10%) · 와리깡 계산기 퀵 배너 */}
-      {onOpenYenCalculator && (
-        <button
-          onClick={onOpenYenCalculator}
-          className="w-full p-3 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-amber-500/10 to-violet-500/10 border border-indigo-200/70 hover:border-indigo-300 text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
-        >
-          <div className="flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-900 font-extrabold flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition">
-              💴
-            </span>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-xs text-slate-800">
-                  현지 엔화 & 와리깡(더치페이) 계산기
-                </span>
-                <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-amber-400 text-slate-950">
-                  10% 소비세
-                </span>
+      {/* 여행 편의 도구 퀵 배너 그리드 (엔화/와리깡 계산기 & 카메라 메뉴판 AI 스캐너) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {onOpenYenCalculator && (
+          <button
+            onClick={onOpenYenCalculator}
+            className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 to-indigo-500/10 border border-amber-200/70 hover:border-amber-300 text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-900 font-extrabold flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition">
+                💴
+              </span>
+              <div>
+                <div className="flex items-center gap-1">
+                  <span className="font-extrabold text-xs text-slate-800">
+                    엔화 & 와리깡 계산기
+                  </span>
+                  <span className="text-[9px] font-black px-1 rounded bg-amber-400 text-slate-950">
+                    10%세
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-slate-500 font-medium">
+                  면세 5,500엔 · 더치페이 잔돈
+                </p>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium">
-                면세 5,500엔 트래커 · 동전 최소화 더치페이 · 쇼핑 회화 내장
-              </p>
             </div>
-          </div>
-          <span className="text-xs font-bold text-indigo-600 group-hover:translate-x-0.5 transition shrink-0">
-            열기 →
-          </span>
-        </button>
-      )}
+            <span className="text-xs font-bold text-amber-700 group-hover:translate-x-0.5 transition shrink-0">
+              →
+            </span>
+          </button>
+        )}
+
+        {onOpenCameraScanner && (
+          <button
+            onClick={onOpenCameraScanner}
+            className="p-3 rounded-2xl bg-gradient-to-r from-indigo-500/10 to-violet-500/10 border border-indigo-200/70 hover:border-indigo-300 text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-extrabold flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition">
+                📷
+              </span>
+              <div>
+                <div className="flex items-center gap-1">
+                  <span className="font-extrabold text-xs text-slate-800">
+                    메뉴판·간판 AI 스캐너
+                  </span>
+                  <span className="text-[9px] font-black px-1 rounded bg-indigo-600 text-white">
+                    Vision
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-slate-500 font-medium">
+                  손글씨 한자 · 발음 · 주문
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-indigo-700 group-hover:translate-x-0.5 transition shrink-0">
+              →
+            </span>
+          </button>
+        )}
+      </div>
 
       {/* 2. 파파고 스타일 모던 양방향 번역 카드 */}
       <div className="rounded-[28px] bg-white border border-slate-200/90 shadow-[0_4px_20px_rgba(15,23,42,0.05)] overflow-hidden">

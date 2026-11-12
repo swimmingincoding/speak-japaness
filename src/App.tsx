@@ -45,6 +45,9 @@ const YenCalculatorModal = lazy(() =>
 const TravelCheatSheetModal = lazy(() =>
   import('./components/TravelCheatSheetModal').then((m) => ({ default: m.TravelCheatSheetModal }))
 );
+const CameraMenuScannerModal = lazy(() =>
+  import('./components/CameraMenuScannerModal').then((m) => ({ default: m.CameraMenuScannerModal }))
+);
 
 const TabLoadingFallback = () => (
   <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-400 animate-fadeIn">
@@ -73,6 +76,7 @@ export const App: React.FC = () => {
   const [isCustomModalOpen, setIsCustomModalOpen] = useState<boolean>(false);
   const [isYenCalculatorOpen, setIsYenCalculatorOpen] = useState<boolean>(false);
   const [isCheatSheetOpen, setIsCheatSheetOpen] = useState<boolean>(false);
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState<boolean>(false);
 
   const [customScenarios, setCustomScenarios] = useState<Scenario[]>(() => {
     try {
@@ -252,10 +256,20 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <button
+                onClick={() => setIsCameraScannerOpen(true)}
+                className="px-2 sm:px-2.5 py-2 rounded-2xl bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-200/80 flex items-center gap-1 text-slate-800 transition cursor-pointer shadow-2xs"
+                title="카메라 메뉴판 · 간판 Gemini Vision AI 스캐너"
+              >
+                <span className="text-sm">📷</span>
+                <span className="text-xs font-black text-indigo-900 hidden sm:inline">메뉴판 AI</span>
+                <span className="text-xs font-black text-indigo-900 sm:hidden">스캔</span>
+              </button>
+
               <button
                 onClick={() => setIsYenCalculatorOpen(true)}
-                className="px-2.5 py-2 rounded-2xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 flex items-center gap-1.5 text-slate-800 transition cursor-pointer shadow-2xs"
+                className="px-2 sm:px-2.5 py-2 rounded-2xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 flex items-center gap-1 text-slate-800 transition cursor-pointer shadow-2xs"
                 title="현지 엔화 환율 · 소비세(10%) · 와리깡 계산기"
               >
                 <span className="text-sm">💴</span>
@@ -329,6 +343,7 @@ export const App: React.FC = () => {
                     onOpenSettings={() => setIsSettingsOpen(true)}
                     onSaveExpression={handleToggleSave}
                     onOpenYenCalculator={() => setIsYenCalculatorOpen(true)}
+                    onOpenCameraScanner={() => setIsCameraScannerOpen(true)}
                   />
                 )}
                 {activeTab === 'n3' && (
@@ -426,6 +441,16 @@ export const App: React.FC = () => {
             isOpen={isCheatSheetOpen}
             onClose={() => setIsCheatSheetOpen(false)}
             savedList={savedExpressions}
+          />
+        </Suspense>
+
+        {/* 카메라 메뉴판 · 간판 Gemini Vision AI 스캐너 모달 */}
+        <Suspense fallback={null}>
+          <CameraMenuScannerModal
+            isOpen={isCameraScannerOpen}
+            onClose={() => setIsCameraScannerOpen(false)}
+            aiConfig={aiConfig}
+            onSaveExpression={handleToggleSave}
           />
         </Suspense>
       </div>

@@ -921,4 +921,177 @@ export async function generateCustomTopicOpening(
   };
 }
 
+export interface VisionMenuItem {
+  japanese: string;
+  furigana: string;
+  pronunciation: string;
+  koreanTranslation: string;
+  price?: string;
+  description: string;
+  recommendation?: 'BEST' | 'HOT' | '추천' | '';
+}
+
+export interface VisionMenuScanResult {
+  placeCategory: string; // 예: "도쿄 라멘 전문점", "이자카야 꼬치구이", "카페/베이커리", "길거리 간판/안내판"
+  summary: string;
+  items: VisionMenuItem[];
+  orderingTip: string;
+}
+
+/**
+ * Gemini Vision / GPT-4o Multimodal API를 활용한 일본어 메뉴판/간판/안내판 실시간 OCR 분석
+ */
+export async function scanJapaneseMenuWithVision(
+  imageDataUrl: string,
+  aiConfig: AIConfig
+): Promise<VisionMenuScanResult | null> {
+  const key = aiConfig?.apiKey?.trim() || '';
+  if (!key) return null;
+
+  // data:image/jpeg;base64,.... 파싱
+  const matches = imageDataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+  const mimeType = matches ? matches[1] : 'image/jpeg';
+  const base64Data = matches ? matches[2] : imageDataUrl;
+
+  const prompt = `당신은 일본 여행 음식 및 메뉴판 전문 가이드 AI입니다.
+업로드된 일본 식당 메뉴판, 자판기 티켓, 간판, 안내판 이미지를 읽고 분석해주세요.
+손글씨, 세로쓰기, 한자가 섞여 있더라도 정확히 판독하여 한국인 여행자가 알기 쉽게 한국어로 설명해야 합니다.
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{
+  "placeCategory": "장소 또는 음식 카테고리 (예: 돈코츠 라멘 전문점, 전통 이자카야, 디저트 킷사텐, 길거리 안내판)",
+  "summary": "메뉴판 전반에 대한 1줄 요약 (예: 진한 돼지뼈 육수의 라멘과 츠케멘 전문점)",
+  "orderingTip": "점원에게 주문할 때 유용한 팁 (예: 자판기 좌측 위 대표 메뉴를 누른 후 식권을 건네세요)",
+  "items": [
+    {
+      "japanese": "메뉴 또는 문구 일본어 원문",
+      "furigana": "전체 히라가나 읽는 법",
+      "pronunciation": "자연스러운 한국어 발음 표기",
+      "koreanTranslation": "한국어 메뉴명 및 번역",
+      "price": "가격 (예: 980円, 미표기 시 생략 가능)",
+      "description": "음식 재료, 맛, 특징 설명 (25자 내외)",
+      "recommendation": "BEST 또는 HOT 또는 추천 (대표 메뉴인 경우)"
+    }
+  ]
+}
+최대 6~8개의 핵심 메뉴/항목을 추출해주세요.`;
+
+  const isGeminiKey = aiConfig.provider === 'gemini' || key.startsWith('AIza');
+  const isOpenAIKey = aiConfig.provider === 'openai' || key.startsWith('sk-');
+
+  if (isGeminiKey) {
+    const modelsToTry = [
+      aiConfig.model || 'gemini-3.8-flash',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ];
+
+    for (const model of modelsToTry) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
+          key
+        )}`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: prompt },
+                  {
+                    inlineData: {
+                      mimeType: mimeType,
+                      data: base64Data,
+                    },
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.2,
+              maxOutputTokens: 1200,
+            },
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+        if (!res.ok) continue;
+
+        const data = await res.json();
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const cleaned = rawText.replace(/```json|```/g, '').trim();
+        const parsed: VisionMenuScanResult = JSON.parse(cleaned);
+        if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
+          return parsed;
+        }
+      } catch (err) {
+        // 다음 모델 시도
+        continue;
+      }
+    }
+  }
+
+  // OpenAI gpt-4o / gpt-4o-mini 지원
+  if (isOpenAIKey) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:${mimeType};base64,${base64Data}`,
+                  },
+                },
+              ],
+            },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.2,
+          max_tokens: 1200,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        const rawText = data?.choices?.[0]?.message?.content || '';
+        const cleaned = rawText.replace(/```json|```/g, '').trim();
+        const parsed: VisionMenuScanResult = JSON.parse(cleaned);
+        if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
+
 
