@@ -443,8 +443,8 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F8FAFC]">
-      {/* 1. 상단 모던 스티키 헤더 */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 shadow-2xs">
+      {/* 1. 상단 모던 스티키 헤더 (아이폰 다이내믹 아일랜드 Safe Area 대응) */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 shadow-2xs pt-[env(safe-area-inset-top,0px)]">
         {/* 네비게이션 & 제목 바 */}
         <div className="px-4 py-2.5 flex items-center justify-between gap-3">
           <button
@@ -1058,7 +1058,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
       {/* 3. 하단 고정 액션 컨트롤러 (현대적 모바일 플로팅 독) */}
       {/* ======================================================== */}
       {mode === 'guided' && !isFinished && currentTurn && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,12px)+0.5rem)]">
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,16px)+0.6rem)]">
           <div className="w-full space-y-2.5">
             {/* Case A: 파트너 턴일 때 (상대방의 말을 듣고 이해) */}
             {currentTurn.speaker !== userRole ? (
@@ -1218,7 +1218,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
 
       {/* FreeTalk Mode 전용 하단 고정 입력창 */}
       {mode === 'freetalk' && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-4 pt-2.5 pb-[calc(env(safe-area-inset-bottom,12px)+0.4rem)] shadow-[0_-8px_30px_rgba(0,0,0,0.06)]">
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-4 pt-2.5 pb-[calc(env(safe-area-inset-bottom,16px)+0.6rem)] shadow-[0_-8px_30px_rgba(0,0,0,0.06)]">
           <div className="w-full space-y-2">
             {/* 추천 답변 칩 */}
             {lastFreePartnerMsg?.suggestedReplies &&

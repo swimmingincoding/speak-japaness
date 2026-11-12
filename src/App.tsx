@@ -236,11 +236,11 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#EEF2F6] text-slate-900 flex justify-center">
-      {/* 모바일 앱 컨테이너 */}
+      {/* 모바일 앱 컨테이너 (아이폰 16 프로 6.3인치 및 모던 스마트폰 최적화) */}
       <div className="w-full max-w-[480px] min-h-screen bg-[#F7F9FC] shadow-2xl shadow-slate-300/60 flex flex-col relative">
-        {/* 상단 모던 앱 바 (시나리오 대화방이 아닐 때만 표시) */}
+        {/* 상단 모던 앱 바 (다이내믹 아일랜드 Safe Area 대응) */}
         {!selectedScenario && (
-          <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-xl border-b border-slate-200/80 px-5 py-3.5 flex items-center justify-between">
+          <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 px-4 sm:px-5 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-3 flex items-center justify-between">
             <div
               onClick={() => handleSwitchTab('scenarios')}
               className="flex items-center gap-3 cursor-pointer"
@@ -386,9 +386,9 @@ export const App: React.FC = () => {
           </Suspense>
         </main>
 
-        {/* 하단 모던 탭 네비게이션 (모바일 Safe-Area 대응) */}
+        {/* 하단 모던 탭 네비게이션 (아이폰 16 프로 홈 인디케이터 Safe-Area 완벽 대응) */}
         {!selectedScenario && (
-          <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/80 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom,10px)+0.35rem)] grid grid-cols-5 gap-1 shadow-[0_-4px_20px_rgba(15,23,42,0.05)]">
+          <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/80 px-2 pt-2 pb-[calc(env(safe-area-inset-bottom,16px)+0.5rem)] grid grid-cols-5 gap-1 shadow-[0_-4px_20px_rgba(15,23,42,0.05)]">
             {(
               [
                 { id: 'scenarios', label: '실전회화', icon: MessageSquareText },

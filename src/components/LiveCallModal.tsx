@@ -263,9 +263,9 @@ export const LiveCallModal: React.FC<LiveCallModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/95 backdrop-blur-xl animate-fadeIn">
-      <div className="relative w-full max-w-[440px] h-full sm:h-[92vh] sm:rounded-3xl bg-gradient-to-b from-slate-900 via-slate-950 to-black text-white flex flex-col justify-between overflow-hidden shadow-2xl border border-slate-800">
-        {/* 상단 통화 상태 인디케이터 바 */}
-        <div className="p-6 text-center space-y-3">
+      <div className="relative w-full max-w-[440px] h-full sm:h-[92vh] sm:max-h-[850px] sm:rounded-3xl bg-gradient-to-b from-slate-900 via-slate-950 to-black text-white flex flex-col justify-between overflow-hidden shadow-2xl border border-slate-800">
+        {/* 상단 통화 상태 인디케이터 바 (아이폰 다이내믹 아일랜드 Safe Area 대응) */}
+        <div className="pt-[calc(env(safe-area-inset-top,20px)+1.2rem)] px-6 pb-4 text-center space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-xs font-bold text-slate-300">
             <span
               className={`w-2 h-2 rounded-full ${
@@ -409,9 +409,9 @@ export const LiveCallModal: React.FC<LiveCallModalProps> = ({
           </div>
         )}
 
-        {/* 하단 통화 컨트롤 바 (전화기 실제 조작 UI) */}
+        {/* 하단 통화 컨트롤 바 (아이폰 16 프로 홈 인디케이터 Safe Area 대응) */}
         {callState !== 'ended' && (
-          <div className="p-6 bg-slate-950/80 border-t border-white/10">
+          <div className="pt-4 px-6 pb-[calc(env(safe-area-inset-bottom,20px)+1.2rem)] bg-slate-950/90 border-t border-white/10">
             <div className="flex items-center justify-around max-w-xs mx-auto">
               {/* 자막 토글 버튼 */}
               <button

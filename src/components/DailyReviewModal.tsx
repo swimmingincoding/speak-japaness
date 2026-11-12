@@ -100,7 +100,7 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/65 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-[450px] max-h-[94vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-100">
+      <div className="relative w-full max-w-[450px] max-h-[calc(100dvh-2rem)] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-100">
         {/* 상단 헤더 */}
         <div className="px-5 py-4 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white flex items-center justify-between shadow-md">
           <div className="flex items-center gap-2.5">
