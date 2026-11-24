@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Camera,
@@ -9,22 +9,20 @@ import {
   BookmarkPlus,
   Check,
   Utensils,
-  Store,
-  HelpCircle,
   Loader2,
   AlertCircle,
   MessageSquare,
-  ArrowRight,
-  Maximize2,
+  Image as ImageIcon,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   scanJapaneseMenuWithVision,
   VisionMenuScanResult,
   VisionMenuItem,
 } from '../utils/aiService';
-import { speakJapanese } from '../utils/speech';
+import { speakJapanese, unlockSpeechForIOS } from '../utils/speech';
 import { AIConfig, SavedExpression } from '../types/conversation';
-import { FuriganaText } from './FuriganaText';
 
 interface CameraMenuScannerModalProps {
   isOpen: boolean;
@@ -158,8 +156,12 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
   aiConfig,
   onSaveExpression,
 }) => {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // 후면 카메라 직접 호출용 input과 사진 앨범 선택용 input을 완전히 분리 (속성 증발 버그 방지)
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showImagePreview, setShowImagePreview] = useState<boolean>(true);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanResult, setScanResult] = useState<VisionMenuScanResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -168,6 +170,17 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
   const [focusedItem, setFocusedItem] = useState<VisionMenuItem | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [savedKey, setSavedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -209,6 +222,8 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
   // 사진 선택 / 촬영 핸들러
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // 같은 사진 재선택 시에도 onChange가 발화하도록 즉시 초기화
+    e.target.value = '';
     if (!file) return;
 
     try {
@@ -216,23 +231,25 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
       setIsScanning(true);
       const dataUrl = await resizeImage(file);
       setSelectedImage(dataUrl);
+      setShowImagePreview(true);
 
-      // Gemini Vision API 호출
       if (aiConfig?.apiKey?.trim()) {
         const result = await scanJapaneseMenuWithVision(dataUrl, aiConfig);
         if (result && result.items.length > 0) {
           setScanResult(result);
         } else {
-          // 비전 실패 시 데모 데이터로 fallback 안내
-          setErrorMessage('메뉴판 텍스트 인식이 어려워 샘플 데이터를 불러왔습니다. 조명이 밝은 곳에서 글씨가 선명하게 다시 촬영해주세요.');
+          setErrorMessage(
+            '메뉴판 텍스트 인식이 어려워 샘플 데이터를 불러왔습니다. 조명이 밝은 곳에서 글씨가 선명하게 다시 촬영해주세요.'
+          );
           setScanResult(DEMO_PRESETS.ramen);
         }
       } else {
-        // API 키가 없을 때 기본 라멘 프리셋으로 안내
-        setErrorMessage('AI 키가 등록되어 있지 않아 [도쿄 라멘 맛집] 샘플 분석 화면을 표시합니다. 설정에서 Gemini API 키를 넣으면 실제 촬영 사진을 실시간 분석합니다!');
+        setErrorMessage(
+          'AI 키가 등록되어 있지 않아 [도쿄 라멘 맛집] 샘플 분석 화면을 표시합니다. 설정에서 Gemini API 키를 넣으면 촬영한 사진을 실시간 분석합니다!'
+        );
         setScanResult(DEMO_PRESETS.ramen);
       }
-    } catch (err) {
+    } catch {
       setErrorMessage('이미지 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setIsScanning(false);
@@ -247,7 +264,7 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
     setTimeout(() => {
       setScanResult(DEMO_PRESETS[key]);
       setIsScanning(false);
-    }, 400);
+    }, 300);
   };
 
   // 복사
@@ -266,7 +283,9 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
         scenarioTitle: scanResult?.placeCategory || '메뉴판 스캔',
         speaker: 'customer',
         japanese: `${item.japanese}をお願いします。`,
-        furigana: item.furigana ? `${item.furigana}をおねがいします。` : `${item.japanese}をおねがいします。`,
+        furigana: item.furigana
+          ? `${item.furigana}をおねがいします。`
+          : `${item.japanese}をおねがいします。`,
         koreanTranslation: `${item.koreanTranslation} 주세요.`,
         koreanPronunciation: `${item.pronunciation} 오네가이시마스`,
         realLifeTip: item.description,
@@ -308,57 +327,61 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
           </button>
         </div>
 
-        {/* 숨김 파일 인풋 */}
+        {/* 분리된 카메라 전용 / 사진 앨범 전용 인풋 */}
         <input
-          ref={fileInputRef}
+          ref={cameraInputRef}
           type="file"
           accept="image/*"
           capture="environment"
           onChange={handleFileChange}
           className="hidden"
         />
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          className="hidden"
+        />
 
         {/* 본문 스크롤 영역 */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 smooth-scroll">
           {/* 촬영 및 업로드 버튼 영역 */}
           <div className="grid grid-cols-2 gap-2.5">
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => cameraInputRef.current?.click()}
               disabled={isScanning}
-              className="py-3.5 px-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs transition flex flex-col items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 cursor-pointer disabled:opacity-50"
+              className="py-3.5 px-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs transition flex flex-col items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20 cursor-pointer disabled:opacity-50 active:scale-[0.98]"
             >
               <Camera className="w-5 h-5" />
               <span>카메라로 즉시 촬영</span>
             </button>
             <button
-              onClick={() => {
-                if (fileInputRef.current) {
-                  fileInputRef.current.removeAttribute('capture');
-                  fileInputRef.current.click();
-                }
-              }}
+              onClick={() => galleryInputRef.current?.click()}
               disabled={isScanning}
-              className="py-3.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs transition flex flex-col items-center justify-center gap-1.5 border border-slate-200 cursor-pointer disabled:opacity-50"
+              className="py-3.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs transition flex flex-col items-center justify-center gap-1.5 border border-slate-200 cursor-pointer disabled:opacity-50 active:scale-[0.98]"
             >
               <Upload className="w-5 h-5 text-slate-600" />
               <span>사진 앨범에서 선택</span>
             </button>
           </div>
 
-          {/* 원터치 샘플 프리셋 버튼 (테스트 및 체험용) */}
+          {/* 원터치 샘플 프리셋 버튼 */}
           <div className="space-y-1.5">
             <span className="text-[11px] font-bold text-slate-500 block">
               💡 실전 맛집 메뉴판 미리보기 체험:
             </span>
             <div className="flex gap-1.5">
-              {[
-                { key: 'ramen', label: '🍜 라멘집' },
-                { key: 'izakaya', label: '🍢 이자카야' },
-                { key: 'cafe', label: '☕ 킷사텐 카페' },
-              ].map((p) => (
+              {(
+                [
+                  { key: 'ramen', label: '🍜 라멘집' },
+                  { key: 'izakaya', label: '🍢 이자카야' },
+                  { key: 'cafe', label: '☕ 킷사텐 카페' },
+                ] as const
+              ).map((p) => (
                 <button
                   key={p.key}
-                  onClick={() => handleSelectPreset(p.key as any)}
+                  onClick={() => handleSelectPreset(p.key)}
                   className="flex-1 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition border border-indigo-100 cursor-pointer text-center"
                 >
                   {p.label}
@@ -366,6 +389,35 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
               ))}
             </div>
           </div>
+
+          {/* 촬영/선택한 원본 이미지 대조용 썸네일 프리뷰 */}
+          {selectedImage && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden">
+              <button
+                onClick={() => setShowImagePreview((prev) => !prev)}
+                className="w-full px-3.5 py-2 flex items-center justify-between text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                  촬영한 메뉴판 사진 원본 대조
+                </span>
+                {showImagePreview ? (
+                  <ChevronUp className="w-4 h-4 text-slate-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                )}
+              </button>
+              {showImagePreview && (
+                <div className="p-2 bg-slate-900 flex justify-center">
+                  <img
+                    src={selectedImage}
+                    alt="촬영한 메뉴판"
+                    className="max-h-44 w-auto object-contain rounded-lg"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 스캐닝 진행 애니메이션 */}
           {isScanning && (
@@ -398,7 +450,6 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
           {/* 스캔 결과 뷰 */}
           {scanResult && !isScanning && (
             <div className="space-y-3 animate-fadeIn">
-              {/* 장소 요약 카드 */}
               <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-md space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-extrabold text-sm text-indigo-300">
@@ -419,7 +470,6 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
                 )}
               </div>
 
-              {/* 판독된 메뉴 리스트 */}
               <div className="space-y-2.5">
                 {scanResult.items.map((item, idx) => (
                   <div
@@ -460,11 +510,10 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
                       </div>
                     )}
 
-                    {/* 액션 버튼 바 */}
                     <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-1">
-                      {/* 점원에게 주문하기 (보여주기) */}
                       <button
                         onClick={() => {
+                          unlockSpeechForIOS();
                           setFocusedItem(item);
                           speakJapanese(`${item.japanese}をお願いします。`, 1.0);
                         }}
@@ -514,7 +563,6 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
             </div>
           )}
 
-          {/* 초기 진입 안내 (아직 결과가 없을 때) */}
           {!scanResult && !isScanning && (
             <div className="py-10 px-4 text-center space-y-3 bg-slate-50 rounded-2xl border border-slate-200/80">
               <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-2xs mx-auto flex items-center justify-center text-indigo-600">
@@ -530,16 +578,16 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
           )}
         </div>
 
-        {/* 점원에게 바로 보여주는 큰 글씨 주문 팝업 (포커스 모드) */}
+        {/* 점원에게 바로 보여주는 전체화면 주문 팝업 (아이폰 16 프로 Safe-Area 완벽 대응) */}
         {focusedItem && (
-          <div className="absolute inset-0 z-20 bg-slate-950/90 backdrop-blur-md p-6 flex flex-col justify-between text-white animate-fadeIn">
+          <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md pt-[calc(env(safe-area-inset-top,20px)+1.2rem)] px-6 pb-[calc(env(safe-area-inset-bottom,20px)+1.2rem)] flex flex-col justify-between text-white animate-fadeIn">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-amber-400">
                 👉 점원에게 화면을 그대로 보여주세요!
               </span>
               <button
                 onClick={() => setFocusedItem(null)}
-                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition cursor-pointer"
+                className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -551,12 +599,10 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
               </div>
 
               <div className="space-y-2">
-                <div className="text-4xl sm:text-5xl font-black text-amber-300 tracking-tight leading-tight">
+                <div className="text-4xl sm:text-5xl font-black text-amber-300 tracking-tight leading-tight break-keep">
                   {focusedItem.japanese}
                 </div>
-                <div className="text-2xl font-bold text-white">
-                  をお願いします
-                </div>
+                <div className="text-2xl font-bold text-white">をお願いします</div>
                 <div className="text-sm font-bold text-indigo-300">
                   [{focusedItem.pronunciation} 오네가이시마스]
                 </div>
@@ -569,17 +615,17 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
               )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2.5 max-w-md w-full mx-auto">
               <button
                 onClick={() => speakJapanese(`${focusedItem.japanese}をお願いします。`, 1.0)}
-                className="flex-1 py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black rounded-2xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
+                className="flex-1 py-3.5 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black rounded-2xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
               >
                 <Volume2 className="w-4 h-4" />
                 음성 다시 듣기
               </button>
               <button
                 onClick={() => setFocusedItem(null)}
-                className="flex-1 py-3 bg-white/20 hover:bg-white/30 text-white font-bold rounded-2xl text-xs flex items-center justify-center cursor-pointer"
+                className="flex-1 py-3.5 bg-white/20 hover:bg-white/30 text-white font-bold rounded-2xl text-xs flex items-center justify-center cursor-pointer"
               >
                 닫기
               </button>
@@ -588,7 +634,7 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
         )}
 
         {/* 모달 하단 닫기 바 */}
-        <div className="p-3 bg-slate-50 border-t border-slate-100 text-center">
+        <div className="p-3 pb-[calc(env(safe-area-inset-bottom,6px)+0.5rem)] bg-slate-50 border-t border-slate-100 text-center">
           <button
             onClick={onClose}
             className="w-full py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"

@@ -268,7 +268,7 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-xs p-0 sm:p-4">
-      <div className="w-full max-w-md rounded-t-[32px] sm:rounded-[32px] bg-white border border-slate-200 p-6 space-y-4 shadow-2xl animate-fadeIn">
+      <div className="w-full max-w-md rounded-t-[32px] sm:rounded-[32px] bg-white border border-slate-200 px-6 pt-6 pb-[calc(env(safe-area-inset-bottom,16px)+1.25rem)] sm:p-6 space-y-4 max-h-[calc(100dvh-1.5rem)] overflow-y-auto smooth-scroll shadow-2xl animate-fadeIn">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-indigo-600" />

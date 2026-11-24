@@ -11,6 +11,7 @@ import {
 import {
   speakJapanese,
   stopSpeaking,
+  unlockSpeechForIOS,
   startJapaneseSpeechRecognition,
   calculateSimilarityScore,
   RecognitionHandle,
@@ -50,6 +51,7 @@ import {
   X,
   Plus,
   Phone,
+  Square,
 } from 'lucide-react';
 
 interface RolePlayRoomProps {
@@ -94,6 +96,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
   const [isListening, setIsListening] = useState<boolean>(false);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState<boolean>(false);
   const [isCallModalOpen, setIsCallModalOpen] = useState<boolean>(false);
+  const [isPlayingAll, setIsPlayingAll] = useState<boolean>(false);
 
   const [freeMessages, setFreeMessages] = useState<FreeTalkMessage[]>([]);
   const [freeInput, setFreeInput] = useState<string>('');
@@ -105,6 +108,18 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
 
   const recognitionRef = useRef<RecognitionHandle | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const playAllSessionRef = useRef<number>(0);
+  const playAllTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const stopPlayAll = () => {
+    playAllSessionRef.current += 1;
+    if (playAllTimerRef.current) {
+      clearTimeout(playAllTimerRef.current);
+      playAllTimerRef.current = null;
+    }
+    setIsPlayingAll(false);
+    stopSpeaking();
+  };
 
   const currentTurn: DialogueTurn | undefined = scenario.turns[currentTurnIndex];
   const isFinished = mode === 'guided' && currentTurnIndex >= scenario.turns.length;
@@ -192,7 +207,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
 
   useEffect(() => {
     return () => {
-      stopSpeaking();
+      stopPlayAll();
       recognitionRef.current?.stop();
     };
   }, []);
@@ -424,13 +439,26 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
   };
 
   const handlePlayAllDialogue = () => {
+    if (isPlayingAll) {
+      stopPlayAll();
+      return;
+    }
+    unlockSpeechForIOS();
+    const sessionId = ++playAllSessionRef.current;
+    setIsPlayingAll(true);
     let idx = 0;
+
     const playNext = () => {
-      if (idx >= scenario.turns.length) return;
+      if (playAllSessionRef.current !== sessionId) return;
+      if (idx >= scenario.turns.length) {
+        setIsPlayingAll(false);
+        return;
+      }
       const t = scenario.turns[idx];
       idx++;
       speakJapanese(t.japanese, displaySettings.ttsSpeed, () => {
-        setTimeout(playNext, 450);
+        if (playAllSessionRef.current !== sessionId) return;
+        playAllTimerRef.current = setTimeout(playNext, 420);
       });
     };
     playNext();
@@ -449,7 +477,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
         <div className="px-4 py-2.5 flex items-center justify-between gap-3">
           <button
             onClick={() => {
-              stopSpeaking();
+              stopPlayAll();
               onBack();
             }}
             className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer shrink-0"
@@ -469,7 +497,11 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
 
           <div className="flex items-center gap-1.5 shrink-0">
             <button
-              onClick={() => setIsCallModalOpen(true)}
+              onClick={() => {
+                stopPlayAll();
+                unlockSpeechForIOS();
+                setIsCallModalOpen(true);
+              }}
               className="flex items-center gap-1 text-[11px] font-extrabold text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 py-1.5 px-2.5 rounded-xl transition cursor-pointer shadow-sm shadow-emerald-500/20 active:scale-95"
               title="실시간 전화 통화형 음성 AI 롤플레잉"
             >
@@ -478,11 +510,24 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
             </button>
             <button
               onClick={handlePlayAllDialogue}
-              className="flex items-center gap-1 text-[11px] font-extrabold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-1.5 px-2.5 rounded-xl transition cursor-pointer"
-              title="전체 대사 연속 듣기"
+              className={`flex items-center gap-1 text-[11px] font-extrabold py-1.5 px-2.5 rounded-xl transition cursor-pointer ${
+                isPlayingAll
+                  ? 'bg-rose-600 text-white shadow-sm animate-pulse'
+                  : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100'
+              }`}
+              title={isPlayingAll ? '전체 듣기 정지' : '전체 대사 연속 듣기'}
             >
-              <Play className="w-3 h-3 fill-current" />
-              <span className="hidden sm:inline">전체듣기</span>
+              {isPlayingAll ? (
+                <>
+                  <Square className="w-3 h-3 fill-current" />
+                  <span>정지</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-3 h-3 fill-current" />
+                  <span className="hidden sm:inline">전체듣기</span>
+                </>
+              )}
             </button>
             <button
               onClick={() => setShowSettingsDrawer((prev) => !prev)}
@@ -964,6 +1009,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
             <div className="space-y-3">
               {freeMessages.map((msg) => {
                 const isUser = msg.sender === 'user';
+                const isFreeSaved = savedIds.has(msg.id);
                 return (
                   <div
                     key={msg.id}
@@ -993,18 +1039,53 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                             }`}
                           />
                         </div>
-                        <button
-                          onClick={() =>
-                            speakJapanese(msg.japanese, displaySettings.ttsSpeed)
-                          }
-                          className={`p-1.5 rounded-lg shrink-0 cursor-pointer transition ${
-                            isUser
-                              ? 'bg-white/20 hover:bg-white/30 text-white'
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                          }`}
-                        >
-                          <Volume2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() =>
+                              speakJapanese(msg.japanese, displaySettings.ttsSpeed)
+                            }
+                            className={`p-1.5 rounded-lg cursor-pointer transition ${
+                              isUser
+                                ? 'bg-white/20 hover:bg-white/30 text-white'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            }`}
+                            title="발음 듣기"
+                          >
+                            <Volume2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              onToggleSave({
+                                id: msg.id,
+                                scenarioId: activeFreeTopic ? activeFreeTopic.id : scenario.id,
+                                scenarioTitle: activeFreeTopic ? activeFreeTopic.title : scenario.title,
+                                speaker: msg.role,
+                                japanese: msg.japanese,
+                                furigana: msg.furigana || msg.japanese,
+                                koreanPronunciation: msg.koreanPronunciation,
+                                koreanTranslation: msg.koreanTranslation,
+                                realLifeTip: msg.realLifeTip || msg.correctionFeedback || 'AI 프리토킹에서 저장한 실전 회화 표현입니다.',
+                                savedAt: new Date().toISOString(),
+                              })
+                            }
+                            className={`p-1.5 rounded-lg cursor-pointer transition ${
+                              isFreeSaved
+                                ? isUser
+                                  ? 'bg-amber-400 text-slate-950'
+                                  : 'bg-rose-50 text-rose-600 border border-rose-200'
+                                : isUser
+                                ? 'bg-white/15 hover:bg-white/25 text-indigo-100'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700'
+                            }`}
+                            title="단어장에 보관"
+                          >
+                            {isFreeSaved ? (
+                              <BookmarkCheck className="w-4 h-4" />
+                            ) : (
+                              <Bookmark className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                       {displaySettings.showKoreanPronunciation &&
                         msg.koreanPronunciation && (
@@ -1027,13 +1108,27 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                       )}
 
                       {msg.correctionFeedback && (
-                        <div className="mt-2 p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-white">
-                          ✨ <strong>회화 코칭:</strong> {msg.correctionFeedback}
+                        <div
+                          className={`mt-2 p-3 rounded-xl border text-xs leading-relaxed ${
+                            isUser
+                              ? 'bg-emerald-400/20 border-emerald-300/40 text-emerald-50'
+                              : 'bg-emerald-50 border-emerald-200 text-emerald-900 font-medium'
+                          }`}
+                        >
+                          ✨ <strong className={isUser ? 'text-white' : 'text-emerald-800'}>회화 코칭:</strong>{' '}
+                          {msg.correctionFeedback}
                         </div>
                       )}
                       {msg.realLifeTip && (
-                        <div className="mt-1 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
-                          💡 <strong>현지 표현 팁:</strong> {msg.realLifeTip}
+                        <div
+                          className={`mt-1 p-3 rounded-xl border text-xs leading-relaxed ${
+                            isUser
+                              ? 'bg-white/15 border-white/20 text-indigo-50'
+                              : 'bg-amber-50/70 border-amber-200/80 text-slate-700'
+                          }`}
+                        >
+                          💡 <strong className={isUser ? 'text-amber-200' : 'text-amber-800'}>현지 표현 팁:</strong>{' '}
+                          {msg.realLifeTip}
                         </div>
                       )}
                     </div>
@@ -1417,6 +1512,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
         aiConfig={aiConfig}
         ttsSpeed={displaySettings.ttsSpeed}
         onSaveExpression={onToggleSave}
+        onCallCompleted={() => onMarkCompleted(scenario.id, userRole)}
       />
     </div>
   );

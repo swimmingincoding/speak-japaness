@@ -2,27 +2,23 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Flame,
-  Award,
-  Sparkles,
   Volume2,
-  CheckCircle2,
   RotateCcw,
   Eye,
   EyeOff,
-  ArrowRight,
-  TrendingUp,
   Brain,
-  Calendar,
+  Check,
 } from 'lucide-react';
 import {
   loadUserStreak,
   recordStudyCompletion,
   getDueReviewItems,
   updateSRSGrade,
+  getWeekStudyStatus,
   UserStreakData,
-  getTodayDateStr,
+  DueReviewCard,
 } from '../utils/srsEngine';
-import { speakJapanese } from '../utils/speech';
+import { speakJapanese, unlockSpeechForIOS } from '../utils/speech';
 import { SavedExpression } from '../types/conversation';
 import { N3_VOCAB_LIST } from '../data/n3Vocab';
 import { FuriganaText } from './FuriganaText';
@@ -41,20 +37,18 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
   ttsSpeed = 1.0,
 }) => {
   const [streakData, setStreakData] = useState<UserStreakData>(() => loadUserStreak());
+  const [sessionItems, setSessionItems] = useState<DueReviewCard[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
   const [showFuriganaHint, setShowFuriganaHint] = useState<boolean>(true);
   const [isSessionComplete, setIsSessionComplete] = useState<boolean>(false);
 
-  // 오늘 복습할 아이템 5개 추출
-  const reviewItems = useMemo(() => {
-    return getDueReviewItems(savedExpressions, N3_VOCAB_LIST, 5);
-  }, [savedExpressions, isOpen]);
-
+  // 모달 오픈 시점에 복습 세션 카드 목록을 고정(스냅샷)하여 도중에 순서가 뒤섞이지 않도록 보호
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       setStreakData(loadUserStreak());
+      setSessionItems(getDueReviewItems(savedExpressions, N3_VOCAB_LIST, 5));
       setCurrentIndex(0);
       setIsFlipped(false);
       setIsSessionComplete(false);
@@ -66,7 +60,8 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
     };
   }, [isOpen]);
 
-  const currentItem = reviewItems[currentIndex];
+  const weekStatus = useMemo(() => getWeekStudyStatus(streakData), [streakData]);
+  const currentItem = sessionItems[currentIndex];
 
   // 카드 평가 및 다음 카드로 이동
   const handleGrade = (grade: 'hard' | 'good' | 'easy') => {
@@ -81,22 +76,17 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
       category: currentItem.category,
     });
 
-    if (currentIndex + 1 < reviewItems.length) {
+    if (currentIndex + 1 < sessionItems.length) {
       setCurrentIndex((prev) => prev + 1);
       setIsFlipped(false);
     } else {
-      // 5개 세션 완료!
-      const updatedStreak = recordStudyCompletion();
+      const updatedStreak = recordStudyCompletion(true);
       setStreakData(updatedStreak);
       setIsSessionComplete(true);
     }
   };
 
   if (!isOpen) return null;
-
-  // 이번 주 7일 출석 체크 계산
-  const todayStr = getTodayDateStr();
-  const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/65 backdrop-blur-md animate-fadeIn">
@@ -114,7 +104,9 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
                 </h3>
               </div>
               <p className="text-[11px] text-amber-100 font-medium">
-                {streakData.currentStreak}일 연속 학습 스트릭 달성 중
+                {streakData.currentStreak > 0
+                  ? `${streakData.currentStreak}일 연속 학습 스트릭 진행 중!`
+                  : '오늘 첫 복습을 완료하고 1일 스트릭을 켜보세요!'}
               </p>
             </div>
           </div>
@@ -137,67 +129,70 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
               </span>
             </div>
             <div className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-              총 {streakData.totalReviewsCompleted}회 복습 완료
+              누적 {streakData.totalReviewsCompleted}회 학습
             </div>
           </div>
 
-          {/* 주간 출석 잔디 / 스트릭 인디케이터 */}
+          {/* 주간 실제 출석 잔디 / 도장 인디케이터 (월~일 전체 날짜 정확 매칭) */}
           <div className="flex items-center justify-between gap-1 pt-1">
-            {weekDays.map((day, idx) => {
-              const isToday = idx === (new Date().getDay() + 6) % 7;
-              const isChecked = streakData.historyDates.includes(todayStr) && isToday;
-              return (
+            {weekStatus.map((dayInfo) => (
+              <div
+                key={dayInfo.dateStr}
+                className={`flex-1 py-1.5 rounded-xl text-center flex flex-col items-center gap-1 border transition ${
+                  dayInfo.isToday
+                    ? 'bg-orange-500 text-white border-orange-400 shadow-2xs'
+                    : dayInfo.isStudied
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                    : 'bg-white border-slate-200 text-slate-500'
+                }`}
+                title={`${dayInfo.dateStr} ${dayInfo.isStudied ? '(학습 완료)' : ''}`}
+              >
+                <span className="text-[10px] font-extrabold">{dayInfo.dayLabel}</span>
                 <div
-                  key={day}
-                  className={`flex-1 py-1 rounded-xl text-center flex flex-col items-center gap-0.5 border transition ${
-                    isToday
-                      ? 'bg-orange-500 text-white border-orange-400 shadow-2xs'
-                      : 'bg-white border-slate-200 text-slate-600'
+                  className={`w-4 h-4 rounded-full flex items-center justify-center ${
+                    dayInfo.isStudied
+                      ? dayInfo.isToday
+                        ? 'bg-white text-orange-600'
+                        : 'bg-emerald-500 text-white'
+                      : dayInfo.isToday
+                      ? 'bg-orange-300/60'
+                      : 'bg-slate-100'
                   }`}
                 >
-                  <span className="text-[10px] font-bold">{day}</span>
-                  <div
-                    className={`w-2.5 h-2.5 rounded-full ${
-                      isToday
-                        ? 'bg-amber-200'
-                        : isChecked
-                        ? 'bg-emerald-500'
-                        : 'bg-slate-200'
-                    }`}
-                  />
+                  {dayInfo.isStudied && <Check className="w-2.5 h-2.5 stroke-[3px]" />}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </div>
 
         {/* 본문 영역 */}
-        <div className="flex-1 overflow-y-auto p-5 flex flex-col justify-between">
+        <div className="flex-1 overflow-y-auto p-5 flex flex-col justify-between smooth-scroll">
           {!isSessionComplete && currentItem ? (
             <div className="space-y-4">
               {/* 진행률 바 */}
               <div className="flex items-center justify-between text-xs font-bold text-slate-500">
                 <span className="flex items-center gap-1.5">
                   <Brain className="w-4 h-4 text-indigo-500" />
-                  오늘의 복습 카드
+                  오늘의 맞춤 복습 카드
                 </span>
-                <span className="text-indigo-600">
-                  {currentIndex + 1} / {reviewItems.length}
+                <span className="text-indigo-600 font-extrabold">
+                  {currentIndex + 1} / {sessionItems.length}
                 </span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                 <div
                   className="bg-gradient-to-r from-amber-500 to-indigo-600 h-full transition-all duration-300 rounded-full"
                   style={{
-                    width: `${((currentIndex + 1) / reviewItems.length) * 100}%`,
+                    width: `${((currentIndex + 1) / Math.max(1, sessionItems.length)) * 100}%`,
                   }}
                 />
               </div>
 
-              {/* 플래시카드 영역 (3D 탭 뒤집기) */}
+              {/* 플래시카드 영역 */}
               <div
                 onClick={() => setIsFlipped(!isFlipped)}
-                className={`relative min-h-[220px] rounded-3xl p-6 flex flex-col justify-between cursor-pointer transition-all duration-300 border shadow-md select-none ${
+                className={`relative min-h-[230px] rounded-3xl p-6 flex flex-col justify-between cursor-pointer transition-all duration-300 border shadow-md select-none ${
                   isFlipped
                     ? 'bg-gradient-to-br from-indigo-900 to-slate-900 text-white border-indigo-700'
                     : 'bg-gradient-to-br from-white to-slate-50 text-slate-900 border-slate-200 hover:border-indigo-300'
@@ -226,7 +221,7 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
                           ? 'bg-white/10 hover:bg-white/20 text-slate-300'
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
                       }`}
-                      title="발음 힌트 토글"
+                      title="후리가나·발음 힌트 토글"
                     >
                       {showFuriganaHint ? (
                         <Eye className="w-4 h-4" />
@@ -238,6 +233,7 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        unlockSpeechForIOS();
                         speakJapanese(currentItem.japanese, ttsSpeed);
                       }}
                       className="p-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs transition cursor-pointer shadow-2xs"
@@ -248,12 +244,17 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
                   </div>
                 </div>
 
-                {/* 중앙 콘텐츠: 일본어 or 한국어 뜻 */}
+                {/* 중앙 콘텐츠: 일본어(후리가나 루비 지원) or 한국어 뜻 */}
                 <div className="text-center py-4 space-y-2">
                   {!isFlipped ? (
                     <>
-                      <div className="text-2xl sm:text-3xl font-black tracking-tight leading-snug">
-                        {currentItem.japanese}
+                      <div>
+                        <FuriganaText
+                          text={currentItem.japanese}
+                          showFurigana={showFuriganaHint}
+                          className="text-2xl sm:text-3xl font-black tracking-tight leading-relaxed text-slate-900"
+                          rtClassName="text-[11px] font-bold text-indigo-600"
+                        />
                       </div>
                       {showFuriganaHint && (
                         <div className="text-xs font-bold text-indigo-600 animate-fadeIn">
@@ -266,10 +267,10 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
                       <div className="text-xl sm:text-2xl font-black text-amber-300 leading-snug">
                         {currentItem.koreanTranslation}
                       </div>
-                      <div className="text-xs text-indigo-200 font-mono">
-                        {currentItem.furigana}
+                      <div className="text-sm font-bold text-white">
+                        {currentItem.japanese} ({currentItem.furigana})
                       </div>
-                      <div className="text-xs font-bold text-slate-300">
+                      <div className="text-xs font-bold text-indigo-200">
                         [{currentItem.koreanPronunciation}]
                       </div>
                     </div>
@@ -284,16 +285,16 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
                     }`}
                   >
                     <RotateCcw className="w-3 h-3" />
-                    {isFlipped ? '탭하여 원문 보기' : '💡 카드를 탭하여 정답 확인하기'}
+                    {isFlipped ? '탭하여 원문 카드로 뒤집기' : '💡 카드를 탭하여 뜻 확인하기'}
                   </span>
                 </div>
               </div>
 
-              {/* 자기 평가 버튼 (카드가 뒤집혔을 때 활성화) */}
+              {/* 자기 평가 버튼 */}
               {isFlipped ? (
                 <div className="space-y-1.5 animate-fadeIn">
                   <span className="text-[11px] font-bold text-slate-500 block text-center">
-                    암기 난이도를 선택하면 복습 주기가 자동 조정됩니다:
+                    암기 난이도를 선택하면 망각곡선 복습 주기가 자동 조정됩니다:
                   </span>
                   <div className="grid grid-cols-3 gap-2">
                     <button
@@ -302,7 +303,7 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
                     >
                       <div>❌ 어려움</div>
                       <div className="text-[10px] text-rose-500 font-normal mt-0.5">
-                        내일 다시 복습
+                        최우선 재복습
                       </div>
                     </button>
                     <button
@@ -335,33 +336,33 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
               )}
             </div>
           ) : (
-            /* 5개 복습 완료 축하 화면 */
-            <div className="py-8 text-center space-y-4 animate-fadeIn my-auto">
+            /* 복습 완료 축하 화면 */
+            <div className="py-6 text-center space-y-4 animate-fadeIn my-auto">
               <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-400 to-orange-500 mx-auto flex items-center justify-center text-white text-4xl shadow-xl shadow-orange-500/30">
                 🎉
               </div>
 
               <div className="space-y-1">
                 <h4 className="text-xl font-black text-slate-900 tracking-tight">
-                  오늘의 복습 5개 완료!
+                  오늘의 망각곡선 복습 완료!
                 </h4>
                 <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-                  에빙하우스 망각곡선 주기에 맞춰 두뇌에 장기 기억으로 저장되었습니다.
+                  망각곡선 주기에 맞춰 기억이 강화되었으며 오늘의 출석 도장이 찍혔습니다.
                 </p>
               </div>
 
-              <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl max-w-xs mx-auto text-left space-y-2">
+              <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl max-w-xs mx-auto text-left space-y-1.5">
                 <div className="flex items-center justify-between text-xs font-bold text-orange-900">
                   <span className="flex items-center gap-1.5">
                     <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
                     연속 학습 스트릭
                   </span>
                   <span className="font-black text-orange-600 text-sm">
-                    {streakData.currentStreak}일 달성!
+                    {streakData.currentStreak}일 연속 달성!
                   </span>
                 </div>
                 <p className="text-[11px] text-orange-700 leading-relaxed font-medium">
-                  내일도 방문하여 스트릭을 이어가면 일본어 뇌가 완성됩니다!
+                  롤플레잉 대화나 N3 퀴즈에서 틀린 단어도 내일 복습 카드에 자동으로 준비됩니다.
                 </p>
               </div>
 

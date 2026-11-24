@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { N3_VOCAB_LIST, N3WordItem, N3PartType } from '../data/n3Vocab';
 import { speakJapanese } from '../utils/speech';
+import { updateSRSGrade } from '../utils/srsEngine';
 import { FuriganaText } from './FuriganaText';
 import {
   BookOpen,
@@ -20,12 +21,14 @@ interface N3StudyRoomProps {
   ttsSpeed: number;
   masteredIds: Set<string>;
   onToggleMastered: (id: string) => void;
+  onStudyActivity?: () => void;
 }
 
 export const N3StudyRoom: React.FC<N3StudyRoomProps> = ({
   ttsSpeed,
   masteredIds,
   onToggleMastered,
+  onStudyActivity,
 }) => {
   const [studyMode, setStudyMode] = useState<'list' | 'flashcard' | 'quiz'>('list');
   const [partFilter, setPartFilter] = useState<N3PartType | 'all'>('all');
@@ -70,6 +73,16 @@ export const N3StudyRoom: React.FC<N3StudyRoomProps> = ({
       correct: prev.correct + (isCorrect ? 1 : 0),
       total: prev.total + 1,
     }));
+    // 퀴즈 정답/오답 결과를 망각곡선(SRS) 복습 큐에 실시간 연동
+    updateSRSGrade(currentQuizWord.id, isCorrect ? 'good' : 'hard', {
+      title: currentQuizWord.word,
+      japanese: currentQuizWord.word,
+      furigana: currentQuizWord.furigana,
+      koreanPronunciation: currentQuizWord.koreanPronunciation,
+      koreanTranslation: currentQuizWord.meaning,
+      category: 'N3 퀴즈 복습',
+    });
+    onStudyActivity?.();
     speakJapanese(currentQuizWord.word, ttsSpeed);
   };
 

@@ -91,6 +91,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   } | null>(null);
 
   const activeReqIdRef = useRef<number>(0);
+  const voiceRecRef = useRef<{ stop: () => void } | null>(null);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -100,6 +101,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      voiceRecRef.current?.stop();
     };
   }, []);
 
@@ -311,22 +313,33 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
 
   const handleVoiceInput = () => {
     if (isListening) {
+      voiceRecRef.current?.stop();
+      voiceRecRef.current = null;
       setIsListening(false);
       return;
     }
 
+    stopSpeakingSafe();
+
     if (direction === 'jp-to-ko') {
       setIsListening(true);
-      startJapaneseSpeechRecognition(
+      const handle = startJapaneseSpeechRecognition(
         (transcript, isFinal) => {
           setInputText(transcript);
           if (isFinal) {
             handleTranslate(transcript);
           }
         },
-        () => setIsListening(false),
-        () => setIsListening(false)
+        () => {
+          voiceRecRef.current = null;
+          setIsListening(false);
+        },
+        () => {
+          voiceRecRef.current = null;
+          setIsListening(false);
+        }
       );
+      voiceRecRef.current = handle;
       return;
     }
 
@@ -343,6 +356,15 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     rec.lang = 'ko-KR';
     rec.interimResults = false;
     setIsListening(true);
+    voiceRecRef.current = {
+      stop: () => {
+        try {
+          rec.stop();
+        } catch {
+          // ignore
+        }
+      },
+    };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onresult = (e: any) => {
       const spoken = e.results?.[0]?.[0]?.transcript || '';
@@ -351,10 +373,27 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
         handleTranslate(spoken);
       }
     };
-    rec.onerror = () => setIsListening(false);
-    rec.onend = () => setIsListening(false);
-    rec.start();
+    rec.onerror = () => {
+      voiceRecRef.current = null;
+      setIsListening(false);
+    };
+    rec.onend = () => {
+      voiceRecRef.current = null;
+      setIsListening(false);
+    };
+    try {
+      rec.start();
+    } catch {
+      voiceRecRef.current = null;
+      setIsListening(false);
+    }
   };
+
+  function stopSpeakingSafe() {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  }
 
   const filteredEmergency: EmergencyPhrase[] =
     selectedEmergencyCat === 'all'
@@ -992,9 +1031,9 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
         </div>
       </div>
 
-      {/* 5. 점원에게 보여주는 전체화면 SOS 빅카드 */}
+      {/* 5. 점원에게 보여주는 전체화면 SOS 빅카드 (아이폰 16 프로 다이내믹 아일랜드 & 홈바 대응) */}
       {bigScreenPhrase && (
-        <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col justify-between p-6 animate-fadeIn">
+        <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col justify-between pt-[calc(env(safe-area-inset-top,20px)+1.2rem)] px-6 pb-[calc(env(safe-area-inset-bottom,20px)+1.2rem)] animate-fadeIn">
           <div className="flex items-center justify-between">
             <span className="px-3.5 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-extrabold">
               🇯🇵 상대방에게 화면을 보여주세요

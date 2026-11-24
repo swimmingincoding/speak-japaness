@@ -5,16 +5,10 @@ import {
   Share2,
   Copy,
   Check,
-  Sparkles,
-  Ticket,
-  Receipt,
-  Heart,
   Smartphone,
-  Eye,
-  RefreshCw,
+  CreditCard,
 } from 'lucide-react';
 import { SavedExpression } from '../types/conversation';
-import { OFFLINE_EMERGENCY_PHRASES } from '../data/offlineTranslatorData';
 
 interface TravelCheatSheetModalProps {
   isOpen: boolean;
@@ -23,6 +17,7 @@ interface TravelCheatSheetModalProps {
 }
 
 type ThemeStyle = 'boarding_pass' | 'tokyo_receipt' | 'sakura_bloom';
+type LayoutMode = 'iphone16pro_lock' | 'compact_card';
 
 // 단어장이 비어있거나 문장이 적을 때 기본 추천되는 '골든 여행 회화 6선'
 const DEFAULT_GOLDEN_PHRASES = [
@@ -64,24 +59,65 @@ const DEFAULT_GOLDEN_PHRASES = [
   },
 ];
 
+// 캔버스 멀티라인 자동 줄바꿈 유틸리티 (우측 잘림 완벽 방지)
+function wrapCanvasText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string[] {
+  if (!text) return [];
+  const chars = Array.from(text);
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const ch of chars) {
+    const testLine = currentLine + ch;
+    if (ctx.measureText(testLine).width > maxWidth && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = ch;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  return lines;
+}
+
 export const TravelCheatSheetModal: React.FC<TravelCheatSheetModalProps> = ({
   isOpen,
   onClose,
   savedList,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // 아이폰 16 프로 사용자를 위해 잠금화면 시계·하단 아이콘 회피 레이아웃을 기본값으로 설정
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('iphone16pro_lock');
   const [selectedTheme, setSelectedTheme] = useState<ThemeStyle>('boarding_pass');
   const [travelerName, setTravelerName] = useState<string>('TABI TRAVELER');
   const [includeSOS, setIncludeSOS] = useState<boolean>(true);
   const [includeShoppingTips, setIncludeShoppingTips] = useState<boolean>(true);
   const [isCopied, setIsCopied] = useState<boolean>(false);
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [previewDataUrl, setPreviewDataUrl] = useState<string>('');
+
+  const maxPhraseCount = layoutMode === 'iphone16pro_lock' ? 5 : 6;
+
+  // 치트시트에 들어갈 표현 목록 조합
+  const displayItems = React.useMemo(() => {
+    if (savedList.length > 0) {
+      return savedList.slice(0, maxPhraseCount).map((item) => ({
+        jp: item.japanese.replace(/（.*?）|\(.*?\)/g, '').trim(),
+        reading: item.koreanPronunciation,
+        kr: item.koreanTranslation,
+        tag: item.speaker === 'customer' ? '손님' : '점원',
+      }));
+    }
+    return DEFAULT_GOLDEN_PHRASES.slice(0, maxPhraseCount);
+  }, [savedList, maxPhraseCount]);
 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      // 렌더링
       renderCanvas();
     } else {
       document.body.style.overflow = 'unset';
@@ -89,292 +125,302 @@ export const TravelCheatSheetModal: React.FC<TravelCheatSheetModalProps> = ({
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, selectedTheme, travelerName, includeSOS, includeShoppingTips, savedList]);
+  }, [isOpen, layoutMode, selectedTheme, travelerName, includeSOS, includeShoppingTips, displayItems]);
 
-  // 치트시트에 들어갈 표현 목록 조합 (최대 7개)
-  const displayItems = React.useMemo(() => {
-    if (savedList.length > 0) {
-      return savedList.slice(0, 7).map((item) => ({
-        jp: item.japanese.replace(/（.*?）|\(.*?\)/g, ''),
-        reading: item.koreanPronunciation,
-        kr: item.koreanTranslation,
-        tag: item.speaker === 'customer' ? '손님' : '점원',
-      }));
-    }
-    return DEFAULT_GOLDEN_PHRASES;
-  }, [savedList]);
-
-  // Canvas 드로잉 함수 (고해상도 800 x 1320px - 스마트폰 9:16 비율)
   const renderCanvas = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    setIsGenerating(true);
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const W = 800;
-    const H = 1320;
+    // 아이폰 16 프로 해상도 비율 (402 : 874 = 1 : 2.174 -> 900 x 1956 고해상도)
+    const isLockMode = layoutMode === 'iphone16pro_lock';
+    const W = isLockMode ? 900 : 840;
+    const H = isLockMode ? 1956 : 1420;
     canvas.width = W;
     canvas.height = H;
 
-    // 테마별 색상 팔레트 정의
-    let bgColor = '#0F172A';
-    let cardBg = '#1E293B';
-    let primaryColor = '#6366F1';
+    let bgColor = '#0B132B';
+    let bgGradientEnd = '#111C44';
+    let cardBg = '#1C2541';
+    let primaryColor = '#818CF8';
     let accentColor = '#38BDF8';
-    let textColor = '#F8FAFC';
-    let subTextColor = '#94A3B8';
-    let dividerColor = '#334155';
+    let textColor = '#FFFFFF';
+    let subTextColor = '#CBD5E1';
+    let dividerColor = 'rgba(255, 255, 255, 0.16)';
     let badgeBg = '#312E81';
-    let badgeText = '#A5B4FC';
+    let badgeText = '#C7D2FE';
 
-    if (selectedTheme === 'boarding_pass') {
-      bgColor = '#0B132B';
-      cardBg = '#1C2541';
-      primaryColor = '#4F46E5';
-      accentColor = '#38BDF8';
-      textColor = '#FFFFFF';
-      subTextColor = '#94A3B8';
-      dividerColor = 'rgba(255, 255, 255, 0.15)';
-      badgeBg = '#312E81';
-      badgeText = '#C7D2FE';
-    } else if (selectedTheme === 'tokyo_receipt') {
-      bgColor = '#F8FAFC';
+    if (selectedTheme === 'tokyo_receipt') {
+      bgColor = '#E2E8F0';
+      bgGradientEnd = '#CBD5E1';
       cardBg = '#FFFFFF';
       primaryColor = '#0F172A';
-      accentColor = '#475569';
+      accentColor = '#334155';
       textColor = '#0F172A';
-      subTextColor = '#64748B';
-      dividerColor = '#E2E8F0';
+      subTextColor = '#475569';
+      dividerColor = '#CBD5E1';
       badgeBg = '#F1F5F9';
-      badgeText = '#334155';
+      badgeText = '#1E293B';
     } else if (selectedTheme === 'sakura_bloom') {
-      bgColor = '#FFF1F2';
+      bgColor = '#FFE4E6';
+      bgGradientEnd = '#FECDD3';
       cardBg = '#FFFFFF';
       primaryColor = '#E11D48';
-      accentColor = '#FB7185';
+      accentColor = '#BE123C';
       textColor = '#881337';
       subTextColor = '#9F1239';
-      dividerColor = '#FFE4E6';
+      dividerColor = '#FECDD3';
       badgeBg = '#FFE4E6';
       badgeText = '#BE123C';
     }
 
-    // 1. 배경 채우기
-    ctx.fillStyle = bgColor;
+    // 1. 배경 그라데이션 채우기
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, bgColor);
+    grad.addColorStop(1, bgGradientEnd);
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
-    // 2. 메인 티켓 카드 영역 (패딩 40px)
-    const cardX = 40;
-    const cardY = 40;
-    const cardW = W - 80;
-    const cardH = H - 80;
-    const radius = 32;
+    // 아이폰 16 프로 잠금화면 모드일 때 상단 시계 영역 은은한 배경 장식
+    if (isLockMode) {
+      ctx.save();
+      ctx.fillStyle = selectedTheme === 'boarding_pass' ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(W / 2, 290, 220, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 2. 메인 티켓 카드 영역 계산
+    // 아이폰 16 프로 잠금화면: 상단 590px(약 30.2%, 다이내믹 아일랜드+날짜+시계+위젯 영역) 및 하단 265px(약 13.5%, 손전등/카메라 버튼+홈바) 회피!
+    const cardX = 44;
+    const cardY = isLockMode ? 590 : 44;
+    const cardW = W - 88;
+    const cardBottomMargin = isLockMode ? 265 : 44;
+    const cardH = H - cardY - cardBottomMargin;
+    const radius = 36;
 
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(cardX + radius, cardY);
-    ctx.lineTo(cardX + cardW - radius, cardY);
-    ctx.quadraticCurveTo(cardX + cardW, cardY, cardX + cardW, cardY + radius);
-    ctx.lineTo(cardX + cardW, cardY + cardH - radius);
-    ctx.quadraticCurveTo(cardX + cardW, cardY + cardH, cardX + cardW - radius, cardY + cardH);
-    ctx.lineTo(cardX + radius, cardY + cardH);
-    ctx.quadraticCurveTo(cardX, cardY + cardH, cardX, cardY + cardH - radius);
-    ctx.lineTo(cardX, cardY + radius);
-    ctx.quadraticCurveTo(cardX, cardY, cardX + radius, cardY);
-    ctx.closePath();
-
+    ctx.roundRect(cardX, cardY, cardW, cardH, radius);
     ctx.fillStyle = cardBg;
     ctx.fill();
 
-    // 테두리
     if (selectedTheme === 'tokyo_receipt') {
       ctx.lineWidth = 3;
-      ctx.strokeStyle = '#CBD5E1';
+      ctx.strokeStyle = '#94A3B8';
       ctx.stroke();
     } else if (selectedTheme === 'sakura_bloom') {
       ctx.lineWidth = 3;
       ctx.strokeStyle = '#FDA4AF';
       ctx.stroke();
+    } else {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+      ctx.stroke();
     }
     ctx.restore();
 
+    // 카드 내부 클리핑으로 어떤 경우에도 카드 밖으로 넘치지 않게 보호
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardW, cardH, radius);
+    ctx.clip();
+
+    const innerLeft = cardX + 34;
+    const innerRight = cardX + cardW - 34;
+    const contentMaxW = innerRight - innerLeft;
+
     // 3. 상단 헤더 영역
-    let y = 95;
-
-    // 비행기 / 보딩패스 아이콘 및 타이틀
-    ctx.fillStyle = primaryColor;
-    ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText('TABITALK TRAVEL PASS · 日本旅行チートシート', 70, y);
-
-    y += 40;
-    ctx.fillStyle = textColor;
-    ctx.font = '900 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText('일본 여행 원핸드 치트시트', 70, y);
-
-    y += 24;
-    ctx.fillStyle = subTextColor;
-    ctx.font = '500 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    let y = cardY + 46;
     const todayStr = new Date().toISOString().split('T')[0];
-    ctx.fillText(`TRAVELER: ${travelerName.toUpperCase()} · DATE: ${todayStr}`, 70, y);
+
+    ctx.fillStyle = primaryColor;
+    ctx.font = '800 14px "Pretendard", -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText(
+      isLockMode
+        ? '✈️ TABITALK · iPhone 16 Pro LOCK SCREEN PASS'
+        : '✈️ TABITALK TRAVEL PASS · 日本旅行チートシート',
+      innerLeft,
+      y
+    );
+
+    y += 34;
+    ctx.fillStyle = textColor;
+    ctx.font = '900 28px "Pretendard", -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText('일본 여행 원핸드 치트시트', innerLeft, y);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = subTextColor;
+    ctx.font = '600 13px "Pretendard", -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText(`${travelerName.toUpperCase()} · ${todayStr}`, innerRight, y - 4);
+    ctx.textAlign = 'left';
 
     // 구분 절취선
-    y += 30;
+    y += 22;
     ctx.beginPath();
-    ctx.setLineDash([8, 8]);
-    ctx.moveTo(70, y);
-    ctx.lineTo(W - 70, y);
+    ctx.setLineDash([7, 7]);
+    ctx.moveTo(innerLeft, y);
+    ctx.lineTo(innerRight, y);
     ctx.strokeStyle = dividerColor;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.setLineDash([]); // 복원
-
-    // 4. 섹션 1: 현지 즉시 사용 핵심 회화 (KEY PHRASES)
-    y += 35;
-    ctx.fillStyle = accentColor;
-    ctx.font = '800 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText('💬 현지 필수 회화 (BEST PHRASES)', 70, y);
-
-    y += 18;
-    displayItems.forEach((item, idx) => {
-      y += 26;
-
-      // 번호 / 배지
-      ctx.fillStyle = badgeBg;
-      ctx.beginPath();
-      ctx.roundRect(70, y - 18, 52, 22, 6);
-      ctx.fill();
-
-      ctx.fillStyle = badgeText;
-      ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(item.tag || `NO.${idx + 1}`, 78, y - 3);
-
-      // 일본어 원문
-      ctx.fillStyle = textColor;
-      ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Meiryo", sans-serif';
-      ctx.fillText(item.jp, 132, y);
-
-      // 발음 및 뜻 (줄바꿈)
-      y += 22;
-      ctx.fillStyle = accentColor;
-      ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(`[${item.reading}]`, 132, y);
-
-      ctx.fillStyle = subTextColor;
-      ctx.font = '500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(`· ${item.kr}`, 135 + ctx.measureText(`[${item.reading}]`).width, y);
-
-      y += 10;
-    });
-
-    // 5. 섹션 2: 현지 결제 & 쇼핑 팁 (TAX & PAYMENT)
-    if (includeShoppingTips) {
-      y += 20;
-      ctx.beginPath();
-      ctx.setLineDash([6, 6]);
-      ctx.moveTo(70, y);
-      ctx.lineTo(W - 70, y);
-      ctx.strokeStyle = dividerColor;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      y += 28;
-      ctx.fillStyle = accentColor;
-      ctx.font = '800 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText('💴 쇼핑 & 세금 정산 꿀팁 (SHOPPING TIPS)', 70, y);
-
-      y += 26;
-      const tips = [
-        '• 소비세: 가격표에 (税抜) 적혀있으면 결제 시 +10% 가산',
-        '• 면세(Tax-Free): 돈키호테/드럭스토어 5,500円 이상 시 여권 제시',
-        '• 더치페이: "別々でお願いします(베츠베츠데 오네가이시마스)"',
-      ];
-      tips.forEach((tip) => {
-        ctx.fillStyle = textColor;
-        ctx.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        ctx.fillText(tip, 75, y);
-        y += 22;
-      });
-    }
-
-    // 6. 섹션 3: 비상 긴급 연락망 (SOS & EMERGENCY)
-    if (includeSOS) {
-      y += 10;
-      ctx.beginPath();
-      ctx.setLineDash([6, 6]);
-      ctx.moveTo(70, y);
-      ctx.lineTo(W - 70, y);
-      ctx.strokeStyle = dividerColor;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      y += 28;
-      ctx.fillStyle = '#F43F5E'; // 긴급 로즈
-      ctx.font = '800 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText('🚨 긴급 상황 비상 연락처 (EMERGENCY)', 70, y);
-
-      y += 24;
-      const sosList = [
-        '• 경찰 범죄 신고: 110번 (일본)',
-        '• 화재 / 구급차 / 응급: 119번 (일본)',
-        '• 외교부 영사콜센터 (24시간 한국어 통역): +82-2-3210-0404',
-      ];
-      sosList.forEach((sos) => {
-        ctx.fillStyle = textColor;
-        ctx.font = '600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        ctx.fillText(sos, 75, y);
-        y += 20;
-      });
-    }
-
-    // 7. 하단 바코드 & 티켓 마무리 장식
-    const bottomY = H - 120;
-    ctx.beginPath();
-    ctx.setLineDash([4, 4]);
-    ctx.moveTo(70, bottomY);
-    ctx.lineTo(W - 70, bottomY);
-    ctx.strokeStyle = dividerColor;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.8;
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 가짜 바코드 그리기
-    const barcodeX = 75;
-    const barcodeY = bottomY + 16;
-    ctx.fillStyle = textColor;
-    for (let i = 0; i < 48; i++) {
-      const barW = (i % 3 === 0 ? 4 : i % 2 === 0 ? 2 : 1);
-      ctx.fillRect(barcodeX + i * 9, barcodeY, barW, 28);
+    // 4. 섹션 1: 현지 즉시 사용 핵심 회화 (자동 줄바꿈 적용)
+    y += 30;
+    ctx.fillStyle = accentColor;
+    ctx.font = '800 14px "Pretendard", -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText('💬 현지 필수 회화 (BEST PHRASES)', innerLeft, y);
+    y += 10;
+
+    const textStartX = innerLeft + 64;
+    const phraseMaxW = innerRight - textStartX;
+
+    displayItems.forEach((item, idx) => {
+      y += 26;
+
+      // 배지
+      ctx.fillStyle = badgeBg;
+      ctx.beginPath();
+      ctx.roundRect(innerLeft, y - 17, 54, 23, 7);
+      ctx.fill();
+
+      ctx.fillStyle = badgeText;
+      ctx.font = '800 11.5px "Pretendard", -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(item.tag || `NO.${idx + 1}`, innerLeft + 27, y - 1);
+      ctx.textAlign = 'left';
+
+      // 일본어 원문 (멀티라인 줄바꿈)
+      ctx.fillStyle = textColor;
+      ctx.font = '800 20px "Noto Sans JP", "Hiragino Sans", sans-serif';
+      const jpLines = wrapCanvasText(ctx, item.jp, phraseMaxW).slice(0, 2);
+      jpLines.forEach((line, lIdx) => {
+        if (lIdx > 0) y += 24;
+        ctx.fillText(line, textStartX, y);
+      });
+
+      // 한글 발음 + 한국어 뜻 (멀티라인 줄바꿈)
+      y += 21;
+      ctx.font = '700 13.5px "Pretendard", -apple-system, sans-serif';
+      const subCombined = `[${item.reading}] · ${item.kr}`;
+      const subLines = wrapCanvasText(ctx, subCombined, phraseMaxW).slice(0, 2);
+      subLines.forEach((sLine, sIdx) => {
+        if (sIdx > 0) y += 18;
+        ctx.fillStyle = sIdx === 0 ? accentColor : subTextColor;
+        ctx.fillText(sLine, textStartX, y);
+      });
+
+      y += 6;
+    });
+
+    // 5. 섹션 2: 쇼핑 & 세금 정산 꿀팁
+    if (includeShoppingTips) {
+      y += 16;
+      ctx.beginPath();
+      ctx.setLineDash([6, 6]);
+      ctx.moveTo(innerLeft, y);
+      ctx.lineTo(innerRight, y);
+      ctx.strokeStyle = dividerColor;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      y += 26;
+      ctx.fillStyle = accentColor;
+      ctx.font = '800 13.5px "Pretendard", -apple-system, sans-serif';
+      ctx.fillText('💴 쇼핑 · 소비세 · 면세 핵심 요약', innerLeft, y);
+
+      y += 22;
+      const tips = [
+        '• 소비세: 가격표 (税抜) 표기 시 결제 금액에 +10% 가산',
+        '• 면세(Tax-Free): 5,500円 이상 구매 시 실물 여권 제시',
+        '• 더치페이 요청: 別々でお願いします [베츠베츠데 오네가이시마스]',
+      ];
+      ctx.fillStyle = textColor;
+      ctx.font = '600 13.5px "Pretendard", -apple-system, sans-serif';
+      tips.forEach((tip) => {
+        const tipLines = wrapCanvasText(ctx, tip, contentMaxW);
+        tipLines.forEach((tl) => {
+          ctx.fillText(tl, innerLeft + 4, y);
+          y += 20;
+        });
+      });
     }
 
-    // 우측 스탬프 문구
-    ctx.textAlign = 'right';
-    ctx.fillStyle = accentColor;
-    ctx.font = '800 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText('HAVE A SAFE FLIGHT & TRIP 🇯🇵', W - 75, bottomY + 30);
-    ctx.fillStyle = subTextColor;
-    ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText('POWERED BY TABITALK', W - 75, bottomY + 46);
-    ctx.textAlign = 'left'; // 원복
+    // 6. 섹션 3: 긴급 연락처
+    if (includeSOS) {
+      y += 8;
+      ctx.beginPath();
+      ctx.setLineDash([6, 6]);
+      ctx.moveTo(innerLeft, y);
+      ctx.lineTo(innerRight, y);
+      ctx.strokeStyle = dividerColor;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-    // 프리뷰 URL 추출
+      y += 25;
+      ctx.fillStyle = '#FB7185';
+      ctx.font = '800 13.5px "Pretendard", -apple-system, sans-serif';
+      ctx.fillText('🚨 긴급 비상 연락망 (24시간 SOS)', innerLeft, y);
+
+      y += 21;
+      ctx.fillStyle = textColor;
+      ctx.font = '700 13.5px "Pretendard", -apple-system, sans-serif';
+      ctx.fillText('• 일본 경찰: 110번   |   화재·구급차: 119번', innerLeft + 4, y);
+      y += 20;
+      ctx.fillText('• 외교부 영사콜센터(한국어 통역): +82-2-3210-0404', innerLeft + 4, y);
+    }
+
+    // 7. 카드 하단 바코드 장식
+    const barcodeBaseY = cardY + cardH - 52;
+    if (y + 20 < barcodeBaseY) {
+      ctx.beginPath();
+      ctx.setLineDash([4, 4]);
+      ctx.moveTo(innerLeft, barcodeBaseY - 12);
+      ctx.lineTo(innerRight, barcodeBaseY - 12);
+      ctx.strokeStyle = dividerColor;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = textColor;
+      for (let i = 0; i < 38; i++) {
+        const barW = i % 3 === 0 ? 4 : i % 2 === 0 ? 2 : 1;
+        ctx.fillRect(innerLeft + i * 8.5, barcodeBaseY, barW, 24);
+      }
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = accentColor;
+      ctx.font = '800 12.5px "Pretendard", -apple-system, sans-serif';
+      ctx.fillText('SAFE TRIP IN JAPAN 🇯🇵', innerRight, barcodeBaseY + 16);
+      ctx.textAlign = 'left';
+    }
+
+    ctx.restore();
+
     const dataUrl = canvas.toDataURL('image/png');
     setPreviewDataUrl(dataUrl);
-    setIsGenerating(false);
   };
 
-  // 이미지 다운로드
+  // Blob 기반 안정적 PNG 다운로드 (iOS Safari 대용량 DataURL 제한 우회)
   const handleDownload = () => {
-    if (!previewDataUrl) return;
-    const a = document.createElement('a');
-    a.href = previewDataUrl;
-    a.download = `TabiTalk_CheatSheet_${new Date().toISOString().slice(0, 10)}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `TabiTalk_${layoutMode === 'iphone16pro_lock' ? 'iPhone16Pro_LockScreen' : 'CheatSheet'}_${new Date().toISOString().slice(0, 10)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+    }, 'image/png');
   };
 
   // 클립보드에 이미지 복사
@@ -385,31 +431,29 @@ export const TravelCheatSheetModal: React.FC<TravelCheatSheetModalProps> = ({
     try {
       canvas.toBlob(async (blob) => {
         if (!blob) return;
-        await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': blob }),
-        ]);
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 2000);
       });
-    } catch (e) {
-      // 복사 미지원 브라우저의 경우 텍스트 복사로 fallback
+    } catch {
       handleDownload();
     }
   };
 
-  // 모바일 Web Share API
-  const handleShare = async () => {
+  // 아이폰 사진 앱 바로 저장 / 공유 시트 실행 (iOS Safari 최적 동선)
+  const handleShareOrSaveToPhotos = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     try {
       canvas.toBlob(async (blob) => {
         if (!blob) return;
-        const file = new File([blob], 'tabitalk_cheatsheet.png', { type: 'image/png' });
+        const file = new File([blob], 'TabiTalk_iPhone16Pro_CheatSheet.png', {
+          type: 'image/png',
+        });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
-            title: '나만의 일본 여행 치트시트',
-            text: '비행기 모드에서도 볼 수 있는 일본 여행 필수 회화 & SOS 치트시트!',
+            title: 'TabiTalk 일본 여행 잠금화면 치트시트',
             files: [file],
           });
         } else {
@@ -435,14 +479,14 @@ export const TravelCheatSheetModal: React.FC<TravelCheatSheetModalProps> = ({
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="font-extrabold text-base leading-tight tracking-tight">
-                  여행 치트시트 1장 내보내기
+                  여행 치트시트 배경화면 만들기
                 </h3>
                 <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-400 text-slate-950">
-                  고화질 PNG
+                  iPhone 16 Pro
                 </span>
               </div>
               <p className="text-[11px] text-indigo-100 font-medium">
-                갤러리/잠금화면 저장 · 비행기 모드 대응
+                잠금화면 시계·하단 버튼 겹침 없는 전용 레이아웃
               </p>
             </div>
           </div>
@@ -454,40 +498,63 @@ export const TravelCheatSheetModal: React.FC<TravelCheatSheetModalProps> = ({
           </button>
         </div>
 
-        {/* 숨김 캔버스 (800x1320 실제 렌더링용) */}
+        {/* 숨김 고해상도 캔버스 */}
         <canvas ref={canvasRef} className="hidden" />
 
         {/* 본문 스크롤 영역 */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* 테마 스타일 선택기 */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 block">디자인 테마 선택</label>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { id: 'boarding_pass', label: '✈️ 보딩패스', desc: '네이비 공항 감성' },
-                { id: 'tokyo_receipt', label: '🧾 도쿄 영수증', desc: '모던 화이트' },
-                { id: 'sakura_bloom', label: '🌸 사쿠라 핑크', desc: '화사한 여행 감성' },
-              ].map((theme) => (
-                <button
-                  key={theme.id}
-                  onClick={() => setSelectedTheme(theme.id as ThemeStyle)}
-                  className={`p-2.5 rounded-2xl text-left border transition cursor-pointer ${
-                    selectedTheme === theme.id
-                      ? 'bg-indigo-50 border-indigo-500 shadow-2xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="text-xs font-black text-slate-900">{theme.label}</div>
-                  <div className="text-[10px] text-slate-500">{theme.desc}</div>
-                </button>
-              ))}
-            </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 smooth-scroll">
+          {/* 1. 비율 모드 스위치 (아이폰 16 프로 잠금화면 vs 일반 카드) */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-2xl">
+            <button
+              onClick={() => setLayoutMode('iphone16pro_lock')}
+              className={`py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                layoutMode === 'iphone16pro_lock'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>iPhone 16 Pro 잠금화면</span>
+            </button>
+            <button
+              onClick={() => setLayoutMode('compact_card')}
+              className={`py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                layoutMode === 'compact_card'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>일반 요약 카드</span>
+            </button>
           </div>
 
-          {/* 옵션 토글 바 */}
+          {/* 2. 디자인 테마 선택기 */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { id: 'boarding_pass', label: '✈️ 보딩패스', desc: '네이비 다크' },
+              { id: 'tokyo_receipt', label: '🧾 도쿄 영수증', desc: '모던 화이트' },
+              { id: 'sakura_bloom', label: '🌸 사쿠라 핑크', desc: '화사한 감성' },
+            ].map((theme) => (
+              <button
+                key={theme.id}
+                onClick={() => setSelectedTheme(theme.id as ThemeStyle)}
+                className={`p-2.5 rounded-2xl text-left border transition cursor-pointer ${
+                  selectedTheme === theme.id
+                    ? 'bg-indigo-50 border-indigo-500 shadow-2xs'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <div className="text-xs font-black text-slate-900">{theme.label}</div>
+                <div className="text-[10px] text-slate-500">{theme.desc}</div>
+              </button>
+            ))}
+          </div>
+
+          {/* 3. 옵션 토글 바 */}
           <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-2 text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-700">여행자 닉네임:</span>
+              <span className="font-bold text-slate-700">여행자 스탬프 닉네임:</span>
               <input
                 type="text"
                 value={travelerName}
@@ -497,7 +564,7 @@ export const TravelCheatSheetModal: React.FC<TravelCheatSheetModalProps> = ({
                 placeholder="닉네임 입력"
               />
             </div>
-            <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+            <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2">
               <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
                 <input
                   type="checkbox"
@@ -505,7 +572,7 @@ export const TravelCheatSheetModal: React.FC<TravelCheatSheetModalProps> = ({
                   onChange={(e) => setIncludeShoppingTips(e.target.checked)}
                   className="rounded text-indigo-600 focus:ring-indigo-500"
                 />
-                소비세 10% & 면세 쇼핑 팁 포함
+                소비세·면세 요약 포함
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
                 <input
@@ -514,80 +581,92 @@ export const TravelCheatSheetModal: React.FC<TravelCheatSheetModalProps> = ({
                   onChange={(e) => setIncludeSOS(e.target.checked)}
                   className="rounded text-indigo-600 focus:ring-indigo-500"
                 />
-                긴급 영사콜센터(110/119) 포함
+                긴급 110/119/영사관 포함
               </label>
             </div>
           </div>
 
-          {/* 카드 미리보기 (9:16 모바일 비율) */}
+          {/* 4. 미리보기 영역 (잠금화면 모드 시 시계/하단 아이콘 위치 오버레이 시뮬레이션 표시!) */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-              <span className="flex items-center gap-1">
-                <Smartphone className="w-3.5 h-3.5 text-indigo-500" />
-                스마트폰 잠금화면 최적화 비율 (800×1320)
+            <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold">
+              <span>
+                {layoutMode === 'iphone16pro_lock'
+                  ? '📱 상단 시계(30%) · 하단 플래시/카메라(14%) 여백 확보됨'
+                  : '🎫 갤러리 열람용 컴팩트 비율'}
               </span>
-              <span>{savedList.length > 0 ? `저장 문장 ${displayItems.length}개 반영` : '골든 회화 반영'}</span>
+              <span>
+                {savedList.length > 0 ? `내 단어장 ${displayItems.length}문장` : '골든 회화 자동 적용'}
+              </span>
             </div>
 
-            <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-md bg-slate-100 flex items-center justify-center max-h-[360px]">
+            <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-md bg-slate-900 flex items-center justify-center py-3">
               {previewDataUrl ? (
-                <img
-                  src={previewDataUrl}
-                  alt="여행 치트시트 미리보기"
-                  className="w-full h-auto object-contain max-h-[350px]"
-                />
+                <div className="relative inline-block">
+                  <img
+                    src={previewDataUrl}
+                    alt="여행 치트시트 미리보기"
+                    className="w-auto h-[340px] object-contain rounded-xl shadow-lg"
+                  />
+                  {/* 실제 이미지에는 안 그려지고 미리보기에서만 시계/아이콘 위치를 안내하는 반투명 가이드 */}
+                  {layoutMode === 'iphone16pro_lock' && (
+                    <div className="pointer-events-none absolute inset-0 flex flex-col justify-between items-center py-4 px-5 text-white/45 select-none">
+                      <div className="text-center space-y-0.5 mt-2">
+                        <div className="w-12 h-2.5 rounded-full bg-black/50 mx-auto mb-1.5" />
+                        <div className="text-[8px] font-bold tracking-wider">11월 24일 화요일</div>
+                        <div className="text-2xl font-black leading-none tracking-tight">09:41</div>
+                        <div className="text-[7px] font-semibold">(iOS 시계 영역 비움)</div>
+                      </div>
+                      <div className="w-full flex items-center justify-between text-[9px] mb-1">
+                        <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">🔦</span>
+                        <span className="w-14 h-1 rounded-full bg-white/40 mt-3" />
+                        <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">📷</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="py-24 text-xs text-slate-400 font-bold">이미지 생성 중...</div>
               )}
             </div>
           </div>
 
-          {/* 활용 팁 배너 */}
-          <div className="p-3 bg-amber-50 border border-amber-200/70 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900">
-            <span className="text-base shrink-0">💡</span>
-            <p className="leading-relaxed">
-              <strong>갤러리에 저장하거나 스마트폰 잠금화면으로 설정</strong>해두면, 비행기 안이나 데이터가 안 터지는 지하철/시골에서도 1초 만에 꺼내 볼 수 있습니다!
-            </p>
+          <div className="p-3 bg-indigo-50/70 border border-indigo-200/70 rounded-2xl text-[11px] text-indigo-950 leading-relaxed">
+            💡 <strong>아이폰 16 프로 꿀팁:</strong> 아래 <strong>[아이폰 사진첩 저장]</strong>을 누른 뒤 공유 시트에서 <strong>'이미지 저장'</strong>을 선택하면 사진 앱에 즉시 저장됩니다!
           </div>
         </div>
 
         {/* 하단 액션 버튼 바 */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200/80 flex items-center gap-2">
+        <div className="p-4 pb-[calc(env(safe-area-inset-bottom,8px)+0.75rem)] bg-slate-50 border-t border-slate-200/80 flex items-center gap-2">
           <button
             onClick={handleCopyImage}
-            className="flex-1 py-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-extrabold rounded-2xl transition cursor-pointer text-xs flex items-center justify-center gap-1.5 shadow-2xs"
+            className="py-3 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-extrabold rounded-2xl transition cursor-pointer text-xs flex items-center justify-center gap-1 shadow-2xs shrink-0"
+            title="클립보드 복사"
           >
             {isCopied ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-600" />
-                <span className="text-emerald-700">복사 완료!</span>
-              </>
+              <Check className="w-4 h-4 text-emerald-600" />
             ) : (
-              <>
-                <Copy className="w-4 h-4 text-slate-500" />
-                이미지 복사
-              </>
+              <Copy className="w-4 h-4 text-slate-500" />
             )}
           </button>
 
           <button
-            onClick={handleShare}
-            className="p-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-extrabold rounded-2xl transition cursor-pointer text-xs flex items-center justify-center shadow-2xs"
-            title="공유하기"
+            onClick={handleDownload}
+            className="py-3 px-3.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-extrabold rounded-2xl transition cursor-pointer text-xs flex items-center justify-center gap-1.5 shadow-2xs shrink-0"
+            title="파일로 다운로드"
           >
-            <Share2 className="w-4 h-4" />
+            <Download className="w-4 h-4 text-slate-600" />
+            <span>파일 받기</span>
           </button>
 
           <button
-            onClick={handleDownload}
-            className="flex-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl transition cursor-pointer text-xs flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/25"
+            onClick={handleShareOrSaveToPhotos}
+            className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl transition cursor-pointer text-xs flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/25"
           >
-            <Download className="w-4 h-4" />
-            고화질 PNG 다운로드
+            <Share2 className="w-4 h-4" />
+            <span>아이폰 사진첩 저장 / 공유</span>
           </button>
         </div>
       </div>
     </div>
   );
 };
-

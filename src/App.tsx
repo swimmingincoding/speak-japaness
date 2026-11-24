@@ -9,8 +9,9 @@ import {
 import { SCENARIOS } from './data/scenarios';
 import { ScenarioList } from './components/ScenarioList';
 import { OfflineTranslator } from './components/OfflineTranslator';
+import { ChunkErrorBoundary } from './components/ChunkErrorBoundary';
 import { stopSpeaking } from './utils/speech';
-import { loadUserStreak } from './utils/srsEngine';
+import { loadUserStreak, recordStudyCompletion } from './utils/srsEngine';
 import {
   Headphones,
   Bookmark,
@@ -220,12 +221,33 @@ export const App: React.FC = () => {
         },
       };
     });
+    // 롤플레잉 완주 시 오늘의 연속 학습 스트릭 자동 달성 반영
+    setStreakData(recordStudyCompletion(true));
   };
 
   const handleToggleN3Mastered = (wordId: string) => {
     setN3MasteredList((prev) =>
       prev.includes(wordId) ? prev.filter((id) => id !== wordId) : [...prev, wordId]
     );
+    setStreakData(recordStudyCompletion(false));
+  };
+
+  const handleReloadRestoredData = () => {
+    try {
+      const savedRaw = localStorage.getItem(STORAGE_KEYS.SAVED);
+      if (savedRaw) setSavedExpressions(JSON.parse(savedRaw));
+      const compRaw = localStorage.getItem(STORAGE_KEYS.COMPLETED);
+      if (compRaw) setCompletedMap(JSON.parse(compRaw));
+      const n3Raw = localStorage.getItem(STORAGE_KEYS.N3_MASTERED);
+      if (n3Raw) setN3MasteredList(JSON.parse(n3Raw));
+      const custRaw = localStorage.getItem(STORAGE_KEYS.CUSTOM_SCENARIOS);
+      if (custRaw) setCustomScenarios(JSON.parse(custRaw));
+      const dispRaw = localStorage.getItem(STORAGE_KEYS.DISPLAY);
+      if (dispRaw) setDisplaySettings(JSON.parse(dispRaw));
+      setStreakData(loadUserStreak());
+    } catch {
+      // ignore
+    }
   };
 
   const handleSwitchTab = (tab: MainTab) => {
@@ -306,7 +328,8 @@ export const App: React.FC = () => {
 
         {/* 메인 콘텐츠 영역 */}
         <main className={selectedScenario ? 'flex-1' : 'flex-1 px-4 pt-4'}>
-          <Suspense fallback={<TabLoadingFallback />}>
+          <ChunkErrorBoundary>
+            <Suspense fallback={<TabLoadingFallback />}>
             {selectedScenario ? (
               <RolePlayRoom
                 scenario={selectedScenario}
@@ -367,6 +390,7 @@ export const App: React.FC = () => {
                     ttsSpeed={displaySettings.ttsSpeed}
                     masteredIds={n3MasteredSet}
                     onToggleMastered={handleToggleN3Mastered}
+                    onStudyActivity={() => setStreakData(recordStudyCompletion(false))}
                   />
                 )}
                 {activeTab === 'keigo' && (
@@ -383,7 +407,8 @@ export const App: React.FC = () => {
                 )}
               </>
             )}
-          </Suspense>
+            </Suspense>
+          </ChunkErrorBoundary>
         </main>
 
         {/* 하단 모던 탭 네비게이션 (아이폰 16 프로 홈 인디케이터 Safe-Area 완벽 대응) */}
@@ -431,6 +456,7 @@ export const App: React.FC = () => {
             onUpdateDisplay={setDisplaySettings}
             aiConfig={aiConfig}
             onUpdateAI={setAiConfig}
+            onDataRestored={handleReloadRestoredData}
           />
         </Suspense>
 

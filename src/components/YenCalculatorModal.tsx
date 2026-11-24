@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
-  RefreshCw,
   Copy,
   Check,
   Volume2,
@@ -12,9 +11,11 @@ import {
   Percent,
   Delete,
   Settings2,
-  HelpCircle,
-  ArrowRight,
   TrendingUp,
+  ArrowLeftRight,
+  Plus,
+  Trash2,
+  ShoppingCart,
 } from 'lucide-react';
 import { speakJapanese } from '../utils/speech';
 
@@ -23,11 +24,20 @@ interface YenCalculatorModalProps {
   onClose: () => void;
 }
 
+interface CartItem {
+  id: string;
+  rawYen: number;
+  finalYen: number;
+  isTaxExclusive: boolean;
+}
+
 const STORAGE_RATE_KEY = 'tabitalk_exchange_rate_v1';
+const STORAGE_CART_KEY = 'tabitalk_shopping_cart_v1';
 const DEFAULT_RATE_PER_100_YEN = 910; // 100엔당 910원 (기본값)
 const TAX_FREE_THRESHOLD_JPY = 5500; // 일본 면세 기준선 5,500엔 (세금 포함)
 
 type CalcTab = 'converter' | 'warikan';
+type InputCurrency = 'JPY' | 'KRW';
 type RoundingOption = 'exact' | 'round10' | 'round100';
 
 // 실전 쇼핑/정산 일본어 표현 모음
@@ -71,8 +81,8 @@ const SHOPPING_PHRASES = [
 ];
 
 export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, onClose }) => {
-  // 모달 탭
   const [activeTab, setActiveTab] = useState<CalcTab>('converter');
+  const [inputCurrency, setInputCurrency] = useState<InputCurrency>('JPY');
 
   // 환율 설정 (100엔당 원화)
   const [ratePer100Yen, setRatePer100Yen] = useState<number>(() => {
@@ -88,25 +98,42 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
     return DEFAULT_RATE_PER_100_YEN;
   });
 
+  // 쇼핑 장바구니 (돈키호테/드럭스토어 다품목 합산용, 오프라인 유지)
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_CART_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
   const [isEditingRate, setIsEditingRate] = useState<boolean>(false);
   const [tempRateInput, setTempRateInput] = useState<string>(ratePer100Yen.toString());
 
-  // 계산기 입력값 (엔화 원문 입력, 기본 빈값 -> 0)
-  const [inputYenStr, setInputYenStr] = useState<string>('2980'); // 기본값 일본 쇼핑 대표 단가
+  // 현재 키패드 입력값
+  const [inputStr, setInputStr] = useState<string>(() => (cartItems.length > 0 ? '0' : '2980'));
 
-  // 소비세 토글: false = 세금 포함(税込そのまま), true = 세금 별도(税抜 표시 상태라 +10% 추가)
+  // 소비세 토글: true = 세금 별도(税抜 가격표라 +10% 가산), false = 세금 포함(税込 그대로)
   const [isTaxExclusive, setIsTaxExclusive] = useState<boolean>(true);
 
   // 와리깡(더치페이) 설정
   const [headcount, setHeadcount] = useState<number>(3);
-  const [rounding, setRounding] = useState<RoundingOption>('round100'); // 100엔 올림이 여행 시 가장 유용
+  const [rounding, setRounding] = useState<RoundingOption>('round100');
 
-  // 복사 피드백 상태
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_CART_KEY, JSON.stringify(cartItems));
+    } catch {
+      // ignore
+    }
+  }, [cartItems]);
+
+  useEffect(() => {
     if (isOpen) {
-      // 모달 열릴 때 백드롭 스크롤 고정
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -116,29 +143,42 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
     };
   }, [isOpen]);
 
-  // 엔화 숫자 환산
-  const rawYen = useMemo(() => {
-    const parsed = parseInt(inputYenStr.replace(/[^0-9]/g, '') || '0', 10);
+  const rawInputNum = useMemo(() => {
+    const parsed = parseInt(inputStr.replace(/[^0-9]/g, '') || '0', 10);
     return isNaN(parsed) ? 0 : parsed;
-  }, [inputYenStr]);
+  }, [inputStr]);
 
-  // 소비세 10% 적용 계산
-  const taxAmount = useMemo(() => {
-    if (!isTaxExclusive) return 0;
-    return Math.floor(rawYen * 0.1);
-  }, [rawYen, isTaxExclusive]);
+  // 현재 입력 중인 단품의 엔화 환산치 (KRW 입력 모드일 경우 역산)
+  const currentRawYen = useMemo(() => {
+    if (inputCurrency === 'JPY') return rawInputNum;
+    return Math.round((rawInputNum * 100) / Math.max(1, ratePer100Yen));
+  }, [rawInputNum, inputCurrency, ratePer100Yen]);
 
-  // 최종 결제 예정 엔화 금액
-  const finalYen = useMemo(() => {
-    return rawYen + taxAmount;
-  }, [rawYen, taxAmount]);
+  const currentTaxYen = useMemo(() => {
+    if (inputCurrency === 'KRW' || !isTaxExclusive) return 0;
+    return Math.floor(currentRawYen * 0.1);
+  }, [currentRawYen, isTaxExclusive, inputCurrency]);
 
-  // 원화 환산액 (100엔당 ratePer100Yen)
+  const currentFinalYen = currentRawYen + currentTaxYen;
+
+  // 장바구니 누적 합계 (세금 포함 기준)
+  const cartTotalYen = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.finalYen, 0),
+    [cartItems]
+  );
+  const cartRawTotalYen = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.rawYen, 0),
+    [cartItems]
+  );
+
+  // 최종 결제 예정 엔화 총액 (장바구니 합계 + 현재 입력 중인 금액)
+  const finalYen = cartTotalYen + currentFinalYen;
   const krwAmount = useMemo(() => {
+    if (inputCurrency === 'KRW' && cartItems.length === 0) return rawInputNum;
     return Math.round((finalYen * ratePer100Yen) / 100);
-  }, [finalYen, ratePer100Yen]);
+  }, [finalYen, ratePer100Yen, inputCurrency, cartItems.length, rawInputNum]);
 
-  // 면세 트래커 진척도 (5,500엔 기준)
+  // 면세 트래커 진척도 (세금 포함 5,500엔 또는 세전 5,000엔 기준)
   const taxFreeProgress = useMemo(() => {
     const pct = (finalYen / TAX_FREE_THRESHOLD_JPY) * 100;
     return Math.min(100, Math.max(0, Math.round(pct)));
@@ -146,6 +186,12 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
 
   const taxFreeGap = useMemo(() => {
     return Math.max(0, TAX_FREE_THRESHOLD_JPY - finalYen);
+  }, [finalYen]);
+
+  // 면세 적용 시 돌려받는(아끼는) 예상 세금 절감액
+  const estimatedTaxSavedYen = useMemo(() => {
+    if (finalYen < TAX_FREE_THRESHOLD_JPY) return 0;
+    return Math.floor(finalYen - finalYen / 1.1);
   }, [finalYen]);
 
   // 와리깡 계산
@@ -158,10 +204,8 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
     if (rounding === 'exact') {
       perPersonYen = Math.ceil(finalYen / headcount);
     } else if (rounding === 'round10') {
-      // 10엔 단위 올림
       perPersonYen = Math.ceil(finalYen / headcount / 10) * 10;
     } else {
-      // 100엔 단위 올림
       perPersonYen = Math.ceil(finalYen / headcount / 100) * 100;
     }
 
@@ -177,7 +221,6 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
     };
   }, [finalYen, headcount, rounding, ratePer100Yen]);
 
-  // 환율 저장
   const handleSaveRate = () => {
     const parsed = parseFloat(tempRateInput);
     if (!isNaN(parsed) && parsed > 100 && parsed < 3000) {
@@ -191,36 +234,63 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
     setIsEditingRate(false);
   };
 
-  // 키패드 입력 핸들러
+  // 통화 방향 스왑 (엔화 입력 <-> 원화 예산 역산)
+  const handleToggleCurrency = () => {
+    if (inputCurrency === 'JPY') {
+      const convertedKrw = Math.round((currentFinalYen * ratePer100Yen) / 100);
+      setInputCurrency('KRW');
+      setInputStr(convertedKrw > 0 ? convertedKrw.toString() : '10000');
+    } else {
+      setInputCurrency('JPY');
+      setInputStr(currentRawYen > 0 ? currentRawYen.toString() : '0');
+    }
+  };
+
+  // 장바구니에 현재 품목 추가
+  const handleAddToCart = () => {
+    if (currentFinalYen <= 0) return;
+    setCartItems((prev) => [
+      ...prev,
+      {
+        id: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+        rawYen: currentRawYen,
+        finalYen: currentFinalYen,
+        isTaxExclusive: inputCurrency === 'JPY' && isTaxExclusive,
+      },
+    ]);
+    setInputStr('0');
+  };
+
+  const handleRemoveCartItem = (id: string) => {
+    setCartItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
   const handleKeypadPress = (val: string) => {
     if (val === 'C') {
-      setInputYenStr('0');
+      setInputStr('0');
       return;
     }
     if (val === 'DEL') {
-      setInputYenStr((prev) => {
+      setInputStr((prev) => {
         if (prev.length <= 1) return '0';
         return prev.slice(0, -1);
       });
       return;
     }
 
-    setInputYenStr((prev) => {
-      if (prev === '0') return val;
-      // 최대 9자리(1억 엔) 제한
-      if (prev.length >= 8) return prev;
+    setInputStr((prev) => {
+      if (prev === '0') return val === '00' ? '0' : val;
+      if (prev.length >= 9) return prev;
       return prev + val;
     });
   };
 
-  // 빠른 금액 추가 버튼
-  const handleAddYen = (amount: number) => {
-    const cur = parseInt(inputYenStr || '0', 10);
-    const next = Math.min(99999999, cur + amount);
-    setInputYenStr(next.toString());
+  const handleAddAmount = (amount: number) => {
+    const cur = parseInt(inputStr || '0', 10);
+    const next = Math.min(999999999, cur + amount);
+    setInputStr(next.toString());
   };
 
-  // 클립보드 복사 유틸
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard?.writeText(text);
     setCopiedKey(key);
@@ -229,9 +299,9 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
     }, 2000);
   };
 
-  // 와리깡 정산 내역 공유 텍스트
   const handleCopyWarikanShare = () => {
-    const text = `💴 일본 여행 와리깡(더치페이) 정산 결과\n` +
+    const text =
+      `💴 일본 여행 와리깡(더치페이) 정산 결과\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `• 총 결제액: ${finalYen.toLocaleString()}円 (약 ${krwAmount.toLocaleString()}원)\n` +
       `• 나눌 인원: ${headcount}명\n` +
@@ -243,6 +313,22 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
   };
 
   if (!isOpen) return null;
+
+  const quickChips =
+    inputCurrency === 'JPY'
+      ? [
+          { label: '+100円', val: 100 },
+          { label: '+500円', val: 500 },
+          { label: '+1,000円', val: 1000 },
+          { label: '+5,000円', val: 5000 },
+          { label: '+10,000円', val: 10000 },
+        ]
+      : [
+          { label: '+1천원', val: 1000 },
+          { label: '+5천원', val: 5000 },
+          { label: '+1만원', val: 10000 },
+          { label: '+5만원', val: 50000 },
+        ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md animate-fadeIn">
@@ -256,14 +342,14 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="font-extrabold text-base leading-tight tracking-tight">
-                  현지 엔화 & 와리깡 계산기
+                  엔화 장바구니 & 와리깡 계산기
                 </h3>
                 <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-amber-400 text-slate-950">
-                  10% 소비세
+                  양방향
                 </span>
               </div>
               <p className="text-[11px] text-indigo-100 font-medium">
-                오프라인 작동 · 면세 5,500엔 트래커
+                장바구니 누적 합산 · 면세 5,500엔 트래커
               </p>
             </div>
           </div>
@@ -283,9 +369,6 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
             <span className="font-extrabold text-slate-800">
               100엔 = {ratePer100Yen.toLocaleString()}원
             </span>
-            <span className="text-[11px] text-slate-400">
-              (1엔 ≈ {(ratePer100Yen / 100).toFixed(2)}원)
-            </span>
           </div>
           <button
             onClick={() => {
@@ -299,7 +382,6 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
           </button>
         </div>
 
-        {/* 환율 직접 수정 패널 */}
         {isEditingRate && (
           <div className="px-5 py-3 bg-amber-50/90 border-b border-amber-200/80 flex items-center gap-2 animate-fadeIn text-xs">
             <span className="text-slate-700 font-bold whitespace-nowrap">100엔 당:</span>
@@ -320,7 +402,7 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
           </div>
         )}
 
-        {/* 탭 전환 (환율/쇼핑 계산 vs 와리깡 더치페이) */}
+        {/* 탭 전환 */}
         <div className="p-2 border-b border-slate-100 flex gap-1.5 bg-slate-50/50">
           <button
             onClick={() => setActiveTab('converter')}
@@ -331,7 +413,7 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
             }`}
           >
             <ShoppingBag className="w-3.5 h-3.5" />
-            엔화 쇼핑 · 소비세
+            쇼핑 · 장바구니{cartItems.length > 0 ? ` (${cartItems.length})` : ''}
           </button>
           <button
             onClick={() => setActiveTab('warikan')}
@@ -347,47 +429,77 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
         </div>
 
         {/* 스크롤 가능한 본문 영역 */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* 금액 디스플레이 카드 (공통 상단) */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 smooth-scroll">
+          {/* 금액 디스플레이 카드 */}
           <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-2xl p-4 text-white shadow-md relative overflow-hidden">
-            {/* 세금 별도/포함 토글 뱃지 */}
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
-                <Receipt className="w-3.5 h-3.5 text-indigo-400" />
-                {isTaxExclusive ? '세금 별도(税抜) 입력 모드' : '세금 포함(税込) 결제 모드'}
-              </span>
+            {/* 상단 모드 및 통화 스왑 토글 */}
+            <div className="flex items-center justify-between gap-1.5 mb-2">
               <button
-                onClick={() => setIsTaxExclusive(!isTaxExclusive)}
-                className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full transition flex items-center gap-1 cursor-pointer border ${
-                  isTaxExclusive
-                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm'
-                    : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
-                }`}
+                onClick={handleToggleCurrency}
+                className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-indigo-500/30 hover:bg-indigo-500/45 border border-indigo-400/40 text-indigo-100 flex items-center gap-1 transition cursor-pointer"
+                title="엔화 입력 ↔ 원화 예산 역산 전환"
               >
-                <Percent className="w-3 h-3" />
-                {isTaxExclusive ? '+10% 소비세 가산 중' : '세금 포함가 그대로'}
+                <ArrowLeftRight className="w-3 h-3 text-amber-300" />
+                <span>{inputCurrency === 'JPY' ? '🇯🇵 엔화 입력 중' : '🇰🇷 원화 역산 중'}</span>
               </button>
+
+              {inputCurrency === 'JPY' && (
+                <button
+                  onClick={() => setIsTaxExclusive(!isTaxExclusive)}
+                  className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full transition flex items-center gap-1 cursor-pointer border ${
+                    isTaxExclusive
+                      ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm'
+                      : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+                  }`}
+                >
+                  <Percent className="w-3 h-3" />
+                  {isTaxExclusive ? '+10% 세금별도(税抜)' : '세금포함가(税込)'}
+                </button>
+              )}
             </div>
 
-            {/* 입력 엔화 & 소비세 내역 */}
+            {/* 현재 입력 금액 표시 */}
             <div className="flex items-baseline justify-between gap-2">
-              <div className="flex items-baseline gap-1">
+              <div className="flex items-baseline gap-1 flex-wrap">
                 <span className="text-3xl font-black tracking-tight text-white font-mono">
-                  {rawYen.toLocaleString()}
+                  {rawInputNum.toLocaleString()}
                 </span>
-                <span className="text-sm font-bold text-slate-300">円</span>
-                {isTaxExclusive && (
+                <span className="text-sm font-bold text-slate-300">
+                  {inputCurrency === 'JPY' ? '円' : '원'}
+                </span>
+                {inputCurrency === 'JPY' && isTaxExclusive && rawInputNum > 0 && (
                   <span className="text-xs text-amber-300 ml-1 font-semibold">
-                    (税抜) + 세 10% ({taxAmount.toLocaleString()}円)
+                    + 세금 {currentTaxYen.toLocaleString()}円
+                  </span>
+                )}
+                {inputCurrency === 'KRW' && rawInputNum > 0 && (
+                  <span className="text-xs text-emerald-300 ml-1 font-semibold">
+                    ≈ {currentRawYen.toLocaleString()}円
                   </span>
                 )}
               </div>
+
+              {activeTab === 'converter' && currentFinalYen > 0 && (
+                <button
+                  onClick={handleAddToCart}
+                  className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1 shrink-0 transition active:scale-95 cursor-pointer shadow-sm"
+                  title="장바구니 합계에 추가하고 다음 상품 입력"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[3px]" />
+                  <span>바구니 담기</span>
+                </button>
+              )}
             </div>
 
-            {/* 최종 결제 금액 (원화 환산 병기) */}
+            {/* 최종 결제 총액 (장바구니 합산 반영) */}
             <div className="mt-2.5 pt-2.5 border-t border-white/15 flex items-baseline justify-between">
               <div>
-                <span className="text-[11px] text-slate-400 font-medium">최종 결제 예정</span>
+                <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
+                  <Receipt className="w-3 h-3 text-indigo-400" />
+                  {cartItems.length > 0
+                    ? `총 합계 (바구니 ${cartItems.length}개 포함)`
+                    : '최종 결제 예정'}
+                </span>
                 <div className="text-xl font-black text-indigo-300 font-mono">
                   {finalYen.toLocaleString()}
                   <span className="text-xs font-bold text-slate-300 ml-0.5">円</span>
@@ -402,6 +514,42 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
               </div>
             </div>
           </div>
+
+          {/* 담긴 장바구니 미니 영수증 리스트 */}
+          {cartItems.length > 0 && (
+            <div className="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-3 space-y-2 animate-fadeIn">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-extrabold text-indigo-950 flex items-center gap-1.5">
+                  <ShoppingCart className="w-3.5 h-3.5 text-indigo-600" />
+                  장바구니 담긴 품목 ({cartItems.length}개 · 세전 {cartRawTotalYen.toLocaleString()}円)
+                </span>
+                <button
+                  onClick={() => setCartItems([])}
+                  className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
+                >
+                  전체 비우기
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
+                {cartItems.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-indigo-200 text-xs font-bold text-slate-800 shadow-2xs"
+                  >
+                    <span className="text-[10px] text-slate-400">#{idx + 1}</span>
+                    <span className="font-mono">{item.finalYen.toLocaleString()}円</span>
+                    <button
+                      onClick={() => handleRemoveCartItem(item.id)}
+                      className="text-slate-400 hover:text-rose-500 cursor-pointer"
+                      title="삭제"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 5,500엔 면세(Tax-Free) 트래커 게이지 */}
           <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 space-y-2">
@@ -420,7 +568,6 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
               </span>
             </div>
 
-            {/* 게이지 바 */}
             <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 rounded-full ${
@@ -432,15 +579,12 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
               />
             </div>
 
-            {/* 면세 도달 여부 알림 */}
             <div className="text-xs">
               {taxFreeGap === 0 ? (
                 <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    🎉 <strong>면세 5,500엔 달성!</strong>
-                  </span>
-                  <span className="text-[11px] font-normal text-emerald-700">
-                    여권 제시 시 10% 면세 환급
+                  <span>🎉 면세 5,500엔 달성!</span>
+                  <span className="text-[11px] font-extrabold text-emerald-700">
+                    약 {estimatedTaxSavedYen.toLocaleString()}円 세금 절약!
                   </span>
                 </div>
               ) : (
@@ -452,27 +596,22 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
                     </strong>{' '}
                     남았어요!
                   </span>
-                  <span className="text-slate-400">(약 {Math.round((taxFreeGap * ratePer100Yen) / 100).toLocaleString()}원)</span>
+                  <span className="text-slate-400">
+                    (약 {Math.round((taxFreeGap * ratePer100Yen) / 100).toLocaleString()}원)
+                  </span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* 탭 1: 쇼핑 키패드 & 빠른 추가 버튼 */}
+          {/* 탭 1: 키패드 & 빠른 추가 버튼 */}
           {activeTab === 'converter' && (
             <div className="space-y-3">
-              {/* 빠른 금액 증감 칩 */}
               <div className="flex flex-wrap gap-1.5">
-                {[
-                  { label: '+100円', val: 100 },
-                  { label: '+500円', val: 500 },
-                  { label: '+1,000円', val: 1000 },
-                  { label: '+5,000円', val: 5000 },
-                  { label: '+10,000円', val: 10000 },
-                ].map((chip) => (
+                {quickChips.map((chip) => (
                   <button
                     key={chip.val}
-                    onClick={() => handleAddYen(chip.val)}
+                    onClick={() => handleAddAmount(chip.val)}
                     className="flex-1 min-w-[68px] py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition border border-indigo-100 cursor-pointer text-center"
                   >
                     {chip.label}
@@ -480,7 +619,6 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
                 ))}
               </div>
 
-              {/* 터치 친화적 4x3 계산기 키패드 */}
               <div className="grid grid-cols-3 gap-2">
                 {['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', 'DEL'].map((key) => {
                   const isDel = key === 'DEL';
@@ -488,7 +626,7 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
                     <button
                       key={key}
                       onClick={() => handleKeypadPress(key)}
-                      className={`h-12 rounded-2xl font-black text-base transition flex items-center justify-center cursor-pointer shadow-2xs ${
+                      className={`h-12 rounded-2xl font-black text-base transition flex items-center justify-center cursor-pointer shadow-2xs active:scale-95 ${
                         isDel
                           ? 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100'
                           : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200'
@@ -505,7 +643,7 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
                   onClick={() => handleKeypadPress('C')}
                   className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
                 >
-                  금액 초기화 (Clear)
+                  입력창 지우기 (C)
                 </button>
                 <button
                   onClick={() =>
@@ -523,8 +661,7 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3.5 h-3.5" />
-                      금액 복사
+                      <Copy className="w-3.5 h-3.5" />총 금액 복사
                     </>
                   )}
                 </button>
@@ -535,7 +672,6 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
           {/* 탭 2: 와리깡 (더치페이) 계산기 */}
           {activeTab === 'warikan' && (
             <div className="space-y-4 animate-fadeIn">
-              {/* 인원수 선택 */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
@@ -561,7 +697,6 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
                   </div>
                 </div>
 
-                {/* 빠른 인원 칩 */}
                 <div className="flex gap-1.5">
                   {[2, 3, 4, 5, 6].map((num) => (
                     <button
@@ -579,7 +714,6 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
                 </div>
               </div>
 
-              {/* 올림/절사 옵션 */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
                 <span className="text-xs font-bold text-slate-700 block">
                   동전 최소화 / 올림 단위 선택
@@ -621,7 +755,6 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
                 </div>
               </div>
 
-              {/* 와리깡 정산 결과 카드 */}
               <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl p-4 text-white shadow-md space-y-3">
                 <div className="flex items-center justify-between text-xs text-indigo-100">
                   <span>1인당 부담 금액 (1人あたり)</span>
@@ -651,7 +784,6 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
                 </div>
               </div>
 
-              {/* 카카오톡 / 클립보드 공유 버튼 */}
               <button
                 onClick={handleCopyWarikanShare}
                 className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 font-extrabold rounded-2xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer text-xs"
@@ -671,7 +803,7 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
             </div>
           )}
 
-          {/* 일본 현지 쇼핑/정산 실전 회화 팁 아코디언/카드 */}
+          {/* 일본 현지 쇼핑/정산 실전 회화 팁 */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
@@ -727,7 +859,7 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
         </div>
 
         {/* 모달 하단 닫기 바 */}
-        <div className="p-3 bg-slate-50 border-t border-slate-100 text-center">
+        <div className="p-3 pb-[calc(env(safe-area-inset-bottom,6px)+0.5rem)] bg-slate-50 border-t border-slate-100 text-center">
           <button
             onClick={onClose}
             className="w-full py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
@@ -739,4 +871,3 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
     </div>
   );
 };
-
