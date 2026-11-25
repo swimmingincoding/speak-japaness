@@ -33,6 +33,9 @@ function offlineAssetManifestPlugin(): Plugin {
 export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss(), offlineAssetManifestPlugin()],
+  worker: {
+    format: 'es',
+  },
   build: {
     rollupOptions: {
       output: {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tabitalk-offline-v4';
+const CACHE_NAME = 'tabitalk-offline-v5';
 const CORE_ASSETS = ['./', './index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -59,13 +59,15 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // 외부 API 호출(Gemini, OpenAI, 번역 API)은 캐싱하지 않고 네트워크 직통 처리
+  // 외부 API 호출(Gemini, OpenAI, 번역 API) 및 HuggingFace 모델 가중치(자체 transformers-cache 사용)는 SW 중복 캐싱 우회
   if (
     event.request.url.includes('generativelanguage.googleapis.com') ||
     event.request.url.includes('api.openai.com') ||
     event.request.url.includes('translate.googleapis.com') ||
     event.request.url.includes('clients5.google.com') ||
-    event.request.url.includes('mymemory.translated.net')
+    event.request.url.includes('mymemory.translated.net') ||
+    event.request.url.includes('huggingface.co') ||
+    event.request.url.includes('hf.co')
   ) {
     return;
   }
@@ -79,7 +81,8 @@ self.addEventListener('fetch', (event) => {
             networkResponse.status === 200 &&
             (event.request.url.startsWith(self.location.origin) ||
               event.request.url.includes('fonts.googleapis.com') ||
-              event.request.url.includes('fonts.gstatic.com'))
+              event.request.url.includes('fonts.gstatic.com') ||
+              event.request.url.includes('cdn.jsdelivr.net'))
           ) {
             const responseClone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {

@@ -24,8 +24,22 @@ import {
   registerDirectKanjiReadings,
 } from '../utils/japanesePhonetics';
 import { translateWithAI } from '../utils/aiService';
+import {
+  subscribeOnDeviceNmtStatus,
+  getOnDeviceNmtStatus,
+  downloadAndActivateOnDeviceModel,
+  setOnDeviceModelPreset,
+  toggleOnDeviceNmtEnabled,
+  suspendOnDeviceWorker,
+  clearOnDeviceModelCache,
+  translateWithOnDeviceNmt,
+  OnDeviceNmtStatus,
+  OnDeviceModelPreset,
+} from '../utils/onDeviceNmtClient';
 import { speakJapanese, startJapaneseSpeechRecognition } from '../utils/speech';
 import { FuriganaText } from './FuriganaText';
+import { TripPackModal } from './TripPackModal';
+import { hydrateInstalledTripPacks } from '../utils/tripLanguagePackStore';
 import {
   Wifi,
   WifiOff,
@@ -43,6 +57,12 @@ import {
   Check,
   Cpu,
   Copy,
+  Download,
+  Trash2,
+  Moon,
+  ChevronDown,
+  ChevronUp,
+  Briefcase,
 } from 'lucide-react';
 import { AIConfig, SavedExpression } from '../types/conversation';
 
@@ -79,6 +99,11 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   const [corpusCategory, setCorpusCategory] = useState<string>('일상');
   const [justSaved, setJustSaved] = useState<boolean>(false);
   const [copiedOutput, setCopiedOutput] = useState<boolean>(false);
+  const [nmtStatus, setNmtStatus] = useState<OnDeviceNmtStatus>(() =>
+    getOnDeviceNmtStatus()
+  );
+  const [showNmtPanel, setShowNmtPanel] = useState<boolean>(false);
+  const [isTripPackModalOpen, setIsTripPackModalOpen] = useState<boolean>(false);
 
   const [selectedEmergencyCat, setSelectedEmergencyCat] = useState<
     EmergencyCategory | 'all'
@@ -98,9 +123,16 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    const unsubscribeNmt = subscribeOnDeviceNmtStatus((st) => {
+      setNmtStatus(st);
+    });
+    hydrateInstalledTripPacks().then(() => {
+      setPackStats(getOfflinePackStats());
+    });
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      unsubscribeNmt();
       voiceRecRef.current?.stop();
     };
   }, []);
@@ -139,12 +171,53 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     const offlineOut = executeOfflineTranslation(text, direction);
     setTranslationResult(offlineOut);
 
-    // 2. 이미 캐시된 고품질 신경망 번역이거나 100% 완전 일치 오프라인 팩인 경우 즉시 완료 (네트워크 0초)
+    // 2. 이미 캐시된 고품질 신경망 번역이거나 98% 이상 완전 일치 오프라인/맞춤 팩인 경우 즉시 완료 (네트워크 0초)
     if (
       offlineOut.engineType === 'offline-neural-cache' ||
-      (offlineOut.engineType === 'offline-pack' && offlineOut.confidence === 100)
+      offlineOut.engineType === 'trip-custom-pack' ||
+      (offlineOut.engineType === 'offline-pack' && offlineOut.confidence >= 98)
     ) {
       setIsTranslating(false);
+      return;
+    }
+
+    const tryOnDeviceNmtUpgrade = async (): Promise<boolean> => {
+      if (!nmtStatus.enabled || offlineOut.confidence >= 97) return false;
+      setIsTranslating(true);
+      try {
+        const nmtTranslated = await translateWithOnDeviceNmt(text, direction);
+        if (currentReqId !== activeReqIdRef.current) return true;
+        if (nmtTranslated && nmtTranslated.trim()) {
+          const finalJp = direction === 'ko-to-jp' ? nmtTranslated.trim() : text;
+          const finalFuri = japaneseToHiraganaReading(finalJp);
+          const finalKorPron = kanaToKoreanPronunciation(finalJp);
+          const nmtOut: TranslationOutput = {
+            japanese: finalJp,
+            furigana: finalFuri,
+            koreanPronunciation: finalKorPron,
+            koreanMeaning: direction === 'ko-to-jp' ? text : nmtTranslated.trim(),
+            engineType: 'on-device-nmt',
+            confidence: 98,
+            tip: '아이폰 온디바이스 신경망(WASM q8)이 데이터 0바이트로 직접 추론한 결과입니다.',
+          };
+          setTranslationResult(nmtOut);
+          saveNeuralCache(text, direction, nmtOut);
+          setPackStats(getOfflinePackStats());
+          return true;
+        }
+      } catch {
+        // 형태소/구문 1차 번역 결과 유지
+      } finally {
+        if (currentReqId === activeReqIdRef.current) {
+          setIsTranslating(false);
+        }
+      }
+      return false;
+    };
+
+    // 2-B. 오프라인(비행기 모드) 상태에서 온디바이스 신경망 엔진이 활성화된 경우: 0.01초 형태소 표시 후 백그라운드 NMT 정밀 교정!
+    if (effectiveOffline) {
+      await tryOnDeviceNmtUpgrade();
       return;
     }
 
@@ -302,12 +375,18 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           setTranslationResult(liveOut);
           saveNeuralCache(text, direction, liveOut);
           setPackStats(getOfflinePackStats());
+          return;
         }
       } catch {
         // 오프라인 구문 번역 결과 유지
       } finally {
         setIsTranslating(false);
       }
+    }
+
+    // 5. 지하철 터널·가짜 와이파이 등 온라인 요청이 모두 실패했을 때도 온디바이스 NMT가 켜져 있다면 자동 구원!
+    if (nmtStatus.enabled && offlineOut.confidence < 97) {
+      await tryOnDeviceNmtUpgrade();
     }
   };
 
@@ -464,8 +543,197 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
         </button>
       </div>
 
-      {/* 여행 편의 도구 퀵 배너 그리드 (엔화/와리깡 계산기 & 카메라 메뉴판 AI 스캐너) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {/* 1-B. 아이폰 16 프로 전용 온디바이스 신경망 번역(NMT) 엔진 매니저 */}
+      <div className="rounded-[24px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-4 shadow-sm border border-indigo-500/30 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setShowNmtPanel((prev) => !prev)}
+            className="flex items-center gap-2.5 text-left flex-1 min-w-0 cursor-pointer"
+          >
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0">
+              <Cpu className="w-4 h-4 text-indigo-300" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-extrabold text-white">
+                  🧠 온디바이스 신경망 AI 엔진
+                </span>
+                <span
+                  className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    nmtStatus.state === 'ready'
+                      ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/40'
+                      : nmtStatus.state === 'loading'
+                      ? 'bg-amber-500/25 text-amber-200 border border-amber-400/40 animate-pulse'
+                      : nmtStatus.enabled && nmtStatus.isDownloaded
+                      ? 'bg-sky-500/25 text-sky-200 border border-sky-400/40'
+                      : 'bg-slate-700/80 text-slate-300'
+                  }`}
+                >
+                  {nmtStatus.state === 'ready'
+                    ? '추론 준비됨'
+                    : nmtStatus.state === 'loading'
+                    ? `로딩 ${nmtStatus.progress}%`
+                    : nmtStatus.enabled && nmtStatus.isDownloaded
+                    ? '절전 대기 중'
+                    : '미설치 (선택)'}
+                </span>
+              </div>
+              <p className="text-[11px] text-indigo-200/80 truncate mt-0.5">
+                {nmtStatus.message}
+              </p>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowNmtPanel((prev) => !prev)}
+            className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-[11px] font-bold text-indigo-100 flex items-center gap-1 shrink-0 cursor-pointer"
+          >
+            <span>{showNmtPanel ? '접기' : '설정'}</span>
+            {showNmtPanel ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+          </button>
+        </div>
+
+        {nmtStatus.state === 'loading' && (
+          <div className="space-y-1">
+            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-400 to-emerald-400 transition-all duration-300"
+                style={{ width: `${Math.max(4, nmtStatus.progress)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {showNmtPanel && (
+          <div className="pt-2 border-t border-white/10 space-y-3 animate-fadeIn">
+            <p className="text-[11px] text-indigo-100/85 leading-relaxed">
+              출국 전 Wi-Fi에서 양자화(q8) 번역 모델을 1회 받아두면, 비행기 안·지하철 음영지역에서도
+              사전에 없는 자유 문장을 아이폰 A18 Pro 칩으로 직접 신경망 번역합니다. (3분 미사용 시 RAM 자동 반환)
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {(
+                [
+                  {
+                    id: 'm2m100-418m' as OnDeviceModelPreset,
+                    title: 'M2M-100 경량 고속 (권장)',
+                    desc: '양방향 쾌속 추론 · 저메모리 q8',
+                  },
+                  {
+                    id: 'nllb-600m' as OnDeviceModelPreset,
+                    title: 'NLLB-200 아시아 고정밀',
+                    desc: '긴 복합문·뉘앙스 특화 q8',
+                  },
+                ] as const
+              ).map((opt) => {
+                const active = nmtStatus.preset === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setOnDeviceModelPreset(opt.id)}
+                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      active
+                        ? 'bg-indigo-500/25 border-indigo-400 text-white'
+                        : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="text-xs font-extrabold">{opt.title}</div>
+                    <div className="text-[10.5px] text-indigo-200/75">{opt.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={nmtStatus.state === 'loading'}
+                onClick={() => downloadAndActivateOnDeviceModel(nmtStatus.preset)}
+                className="px-3.5 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>
+                  {nmtStatus.isDownloaded
+                    ? '캐시에서 엔진 깨우기'
+                    : 'Wi-Fi 모델 다운로드 및 활성화'}
+                </span>
+              </button>
+
+              {nmtStatus.isDownloaded && (
+                <button
+                  type="button"
+                  onClick={() => toggleOnDeviceNmtEnabled(!nmtStatus.enabled)}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold cursor-pointer ${
+                    nmtStatus.enabled
+                      ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40'
+                      : 'bg-white/10 text-slate-300'
+                  }`}
+                >
+                  {nmtStatus.enabled ? '자동 NMT 켜짐' : '자동 NMT 꺼짐'}
+                </button>
+              )}
+
+              {nmtStatus.state === 'ready' && (
+                <button
+                  type="button"
+                  onClick={() => suspendOnDeviceWorker()}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-indigo-100 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                  title="디스크 캐시는 유지하고 Safari RAM만 즉시 반환합니다"
+                >
+                  <Moon className="w-3.5 h-3.5" /> RAM 절전
+                </button>
+              )}
+
+              {nmtStatus.isDownloaded && (
+                <button
+                  type="button"
+                  onClick={() => clearOnDeviceModelCache()}
+                  className="px-3 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-bold flex items-center gap-1 cursor-pointer ml-auto"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> 캐시 삭제
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 여행 편의 도구 퀵 배너 그리드 (맞춤 언어팩 · 엔화/와리깡 계산기 · 카메라 메뉴판 스캐너) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={() => setIsTripPackModalOpen(true)}
+          className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-200/80 hover:border-emerald-300 text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
+        >
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-extrabold flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition">
+              <Briefcase className="w-4 h-4" />
+            </span>
+            <div>
+              <div className="flex items-center gap-1">
+                <span className="font-extrabold text-xs text-slate-800">
+                  출국 전 맞춤 언어팩
+                </span>
+                <span className="text-[9px] font-black px-1 rounded bg-emerald-600 text-white">
+                  오프라인
+                </span>
+              </div>
+              <p className="text-[10.5px] text-slate-500 font-medium">
+                내 일정 · 알레르기 · 미식팩
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-bold text-emerald-700 group-hover:translate-x-0.5 transition shrink-0">
+            →
+          </span>
+        </button>
         {onOpenYenCalculator && (
           <button
             onClick={onOpenYenCalculator}
@@ -667,16 +935,24 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                 {isTranslating ? (
                   <>
                     <Sparkles className="w-3 h-3 text-amber-600 animate-spin" />
-                    <span>⚡ Gemini 3.8 초고속 업그레이드 중...</span>
+                    <span>
+                      {effectiveOffline && nmtStatus.enabled
+                        ? '🧠 아이폰 온디바이스 신경망 교정 중...'
+                        : '⚡ Gemini 3.8 초고속 업그레이드 중...'}
+                    </span>
                   </>
                 ) : translationResult.engineType === 'gemini-ai' ? (
                   '✨ Gemini 3.8 AI 초고속 번역 완료'
                 ) : translationResult.engineType === 'openai-ai' ? (
                   '✨ OpenAI GPT 실시간 번역'
+                ) : translationResult.engineType === 'on-device-nmt' ? (
+                  '🧠 아이폰 온디바이스 신경망 AI 번역 완료'
+                ) : translationResult.engineType === 'trip-custom-pack' ? (
+                  '🎒 내 맞춤 여행 언어팩 0.001초 즉시 번역'
                 ) : translationResult.engineType === 'offline-neural-cache' ? (
                   '⚡ 0.001초 고속 캐시 메모리'
                 ) : translationResult.engineType === 'offline-pack' ? (
-                  '⚡ 0.01초 오프라인 즉시 번역'
+                  '⚡ 0.01초 오프라인 형태소·구문 번역'
                 ) : (
                   '⚡ 실시간 신경망 번역'
                 )}
@@ -1082,6 +1358,19 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           </div>
         </div>
       )}
+      {/* 6. 출국 전 맞춤 여행 언어팩 모달 (IndexedDB + Gemini 일정 맞춤 생성) */}
+      <TripPackModal
+        isOpen={isTripPackModalOpen}
+        onClose={() => setIsTripPackModalOpen(false)}
+        aiConfig={aiConfig}
+        ttsSpeed={ttsSpeed}
+        onPacksChanged={() => setPackStats(getOfflinePackStats())}
+        onSelectSentenceToTranslate={(sent) => {
+          setDirection('ko-to-jp');
+          setInputText(sent.ko);
+          handleTranslate(sent.ko);
+        }}
+      />
     </div>
   );
 };

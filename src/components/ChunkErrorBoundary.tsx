@@ -48,3 +48,4 @@ export class ChunkErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
+
