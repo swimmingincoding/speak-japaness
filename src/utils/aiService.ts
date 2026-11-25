@@ -33,8 +33,8 @@ export async function translateWithAI(
 반드시 아래 JSON 형식으로만 빠르게 응답하세요:
 {
   "japanese": "자연스러운 일본어 문장",
-  "furigana": "문장 전체 히라가나 발음",
-  "koreanPronunciation": "자연스러운 한글 발음",
+  "furigana": "어절(박자) 단위로 띄어쓰기된 전체 히라가나 발음",
+  "koreanPronunciation": "어절(박자) 단위로 자연스럽게 띄어쓰기된 한글 발음 (예: 스미마센, 요야쿠와 시테 이나이노데스가, 이마 하이레마스카?)",
   "koreanMeaning": "한국어 뜻",
   "tip": "현지 팁 (15자 이내)"
 }`;

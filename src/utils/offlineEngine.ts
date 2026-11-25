@@ -2484,6 +2484,19 @@ export function saveNeuralCache(
   }
 }
 
+function upgradeCachedPronunciationIfNeeded(item: TranslationOutput): TranslationOutput {
+  if (!item?.japanese) return item;
+  const spaceCount = (item.koreanPronunciation?.match(/\s/g) || []).length;
+  if (item.japanese.length >= 7 && spaceCount === 0) {
+    return {
+      ...item,
+      furigana: japaneseToHiraganaReading(item.japanese),
+      koreanPronunciation: kanaToKoreanPronunciation(item.japanese),
+    };
+  }
+  return item;
+}
+
 export function getNeuralCacheEntries(): Array<{
   key: string;
   direction: 'ko-to-jp' | 'jp-to-ko';
@@ -2499,7 +2512,7 @@ export function getNeuralCacheEntries(): Array<{
         const isKoToJp = k.startsWith('ko-to-jp:');
         const direction: 'ko-to-jp' | 'jp-to-ko' = isKoToJp ? 'ko-to-jp' : 'jp-to-ko';
         const source = k.slice(direction.length + 1);
-        return { key: k, direction, source, output };
+        return { key: k, direction, source, output: upgradeCachedPronunciationIfNeeded(output) };
       })
       .reverse();
   } catch {
@@ -2517,7 +2530,10 @@ export function loadNeuralCache(
     const map: Record<string, TranslationOutput> = JSON.parse(raw);
     const exactKey = `${direction}:${source.trim()}`;
     if (map[exactKey]) {
-      return { ...map[exactKey], engineType: 'offline-neural-cache' };
+      return {
+        ...upgradeCachedPronunciationIfNeeded(map[exactKey]),
+        engineType: 'offline-neural-cache',
+      };
     }
     // 문장부호·공백 차이를 무시하는 정규화 퍼지 매칭 지원 (오프라인에서 물음표나 띄어쓰기가 달라도 캐시 적중!)
     const normTarget = source.replace(/[?？.!~\s]/g, '');
@@ -2525,7 +2541,10 @@ export function loadNeuralCache(
       if (!k.startsWith(`${direction}:`)) continue;
       const savedSource = k.slice(direction.length + 1);
       if (savedSource.replace(/[?？.!~\s]/g, '') === normTarget) {
-        return { ...val, engineType: 'offline-neural-cache' };
+        return {
+          ...upgradeCachedPronunciationIfNeeded(val),
+          engineType: 'offline-neural-cache',
+        };
       }
     }
   } catch {

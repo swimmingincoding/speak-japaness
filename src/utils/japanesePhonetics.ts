@@ -658,6 +658,27 @@ export const KANJI_RUBY_DICT: Array<[string, string]> = [
   ['道', 'みち'],
   // 복합 표현 및 긴 숙어
   ['韓国人旅行者', 'かんこくじんりょこうしゃ'],
+  ['入れますか', 'はいれますか'],
+  ['入れます', 'はいれます'],
+  ['入っていますか', 'はいっていますか'],
+  ['入っています', 'はいっています'],
+  ['入っていると', 'はいっていると'],
+  ['入っている', 'はいっている'],
+  ['分制', 'ふんせい'],
+  ['時間制', 'じかんせい'],
+  ['喫煙室', 'きつえんしつ'],
+  ['お煙草', 'おたばこ'],
+  ['煙草', 'たばこ'],
+  ['対象外', 'たいしょうがい'],
+  ['発車', 'はっしゃ'],
+  ['合計', 'ごうけい'],
+  ['個別会計', 'こべつかいけい'],
+  ['個別', 'こべつ'],
+  ['撮影', 'さつえい'],
+  ['お控え', 'おひかえ'],
+  ['ご提示', 'ごていじ'],
+  ['お上がり', 'おあがり'],
+  ['お伺い', 'おうかがい'],
   ['韓国大使館', 'かんこくたいしかん'],
   ['お忘れ物センター', 'おわすれものせんたー'],
   ['緊急事態', 'きんきゅうじたい'],
@@ -2889,11 +2910,341 @@ export function parseJapaneseToRubySegments(jpText: string): RubySegment[] {
   return segments;
 }
 
-// 일본어 문장(한자+가나) 전체를 히라가나 읽기로 변환
+// ============================================================================
+// 일본어 아라비아 숫자 + 조수사(時·分·階·円·人·番·枚·杯·本·個·つ) 자연 발음 변환기
+// ============================================================================
+function intToJapaneseReading(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return '';
+  if (n === 0) return 'ぜろ';
+
+  const ones = ['', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう'];
+  let rem = Math.floor(n);
+  let res = '';
+
+  if (rem >= 10000) {
+    const man = Math.floor(rem / 10000);
+    res += (man === 1 ? 'いち' : intToJapaneseReading(man)) + 'まん';
+    rem %= 10000;
+  }
+
+  if (rem >= 1000) {
+    const sen = Math.floor(rem / 1000);
+    if (sen === 1) res += 'せん';
+    else if (sen === 3) res += 'さんぜん';
+    else if (sen === 8) res += 'はっせん';
+    else res += ones[sen] + 'せん';
+    rem %= 1000;
+  }
+
+  if (rem >= 100) {
+    const hyaku = Math.floor(rem / 100);
+    if (hyaku === 1) res += 'ひゃく';
+    else if (hyaku === 3) res += 'さんびゃく';
+    else if (hyaku === 6) res += 'ろっぴゃく';
+    else if (hyaku === 8) res += 'はっぴゃく';
+    else res += ones[hyaku] + 'ひゃく';
+    rem %= 100;
+  }
+
+  if (rem >= 10) {
+    const juu = Math.floor(rem / 10);
+    res += (juu === 1 ? '' : ones[juu]) + 'じゅう';
+    rem %= 10;
+  }
+
+  if (rem > 0) {
+    res += ones[rem];
+  }
+
+  return res;
+}
+
+function convertNumberWithCounterToHiragana(numStr: string, counter: string): string {
+  const n = parseInt(numStr.replace(/,/g, ''), 10);
+  if (Number.isNaN(n) || n > 9999999) return numStr + counter;
+
+  const lastDigit = n % 10;
+  const prefixVal = n - lastDigit;
+  const prefixKana = prefixVal > 0 ? intToJapaneseReading(prefixVal) : '';
+
+  if (counter === '時' || counter === '時間' || counter === '時間制') {
+    const suffix = counter === '時' ? 'じ' : counter === '時間' ? 'じかん' : 'じかんせい';
+    if (lastDigit === 4) return `${prefixKana}よ${suffix}`;
+    if (lastDigit === 7 && counter === '時') return `${prefixKana}しち${suffix}`;
+    if (lastDigit === 9) return `${prefixKana}く${suffix}`;
+    return `${intToJapaneseReading(n)}${suffix}`;
+  }
+
+  if (counter === '分' || counter === '分制' || counter === '分間') {
+    const extra = counter === '分制' ? 'せい' : counter === '分間' ? 'かん' : '';
+    if (n > 0 && lastDigit === 0) {
+      const tens = Math.floor((n % 100) / 10);
+      const highPrefix = n - (n % 100) > 0 ? intToJapaneseReading(n - (n % 100)) : '';
+      const tensWord =
+        tens === 1
+          ? 'じゅっ'
+          : `${['', '', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう'][tens]}じゅっ`;
+      return `${highPrefix}${tensWord}ぷん${extra}`;
+    }
+    if (lastDigit === 1) return `${prefixKana}いっぷん${extra}`;
+    if (lastDigit === 3) return `${prefixKana}さんぷん${extra}`;
+    if (lastDigit === 4) return `${prefixKana}よんぷん${extra}`;
+    if (lastDigit === 6) return `${prefixKana}ろっぷん${extra}`;
+    if (lastDigit === 8) return `${prefixKana}はっぷん${extra}`;
+    return `${intToJapaneseReading(n)}ふん${extra}`;
+  }
+
+  if (counter === '階') {
+    if (n === 1) return 'いっかい';
+    if (n === 3) return 'さんがい';
+    if (n === 6) return 'ろっかい';
+    if (n === 8) return 'はっかい';
+    if (n === 10) return 'じゅっかい';
+    return `${intToJapaneseReading(n)}かい`;
+  }
+
+  if (counter === '人') {
+    if (n === 1) return 'ひとり';
+    if (n === 2) return 'ふたり';
+    if (n === 4) return 'よにん';
+    return `${intToJapaneseReading(n)}にん`;
+  }
+
+  if (counter === 'つ') {
+    const tsuMap: Record<number, string> = {
+      1: 'ひとつ', 2: 'ふたつ', 3: 'みっつ', 4: 'よっつ', 5: 'いつつ',
+      6: 'むっつ', 7: 'ななつ', 8: 'やっつ', 9: 'ここのつ',
+    };
+    if (tsuMap[n]) return tsuMap[n];
+  }
+
+  if (counter === '杯') {
+    if (lastDigit === 1) return `${prefixKana}いっぱい`;
+    if (lastDigit === 3) return `${prefixKana}さんばい`;
+    if (lastDigit === 6) return `${prefixKana}ろっぱい`;
+    if (lastDigit === 8) return `${prefixKana}はっぱい`;
+    return `${intToJapaneseReading(n)}はい`;
+  }
+
+  if (counter === '本') {
+    if (lastDigit === 1) return `${prefixKana}いっぽん`;
+    if (lastDigit === 3) return `${prefixKana}さんぼん`;
+    if (lastDigit === 6) return `${prefixKana}ろっぽん`;
+    if (lastDigit === 8) return `${prefixKana}はっぽん`;
+    return `${intToJapaneseReading(n)}ほん`;
+  }
+
+  const simpleCounterMap: Record<string, string> = {
+    円: 'えん',
+    番線: 'ばんせん',
+    番ホーム: 'ばんほーむ',
+    番出口: 'ばんでぐち',
+    番: 'ばん',
+    名様: 'めいさま',
+    名: 'めい',
+    人前: 'にんまえ',
+    枚: 'まい',
+    個: 'こ',
+    歳: 'さい',
+    泊: 'はく',
+    号室: 'ごうしつ',
+    点: 'てん',
+    '%': 'ぱーせんと',
+    '％': 'ぱーせんと',
+  };
+
+  if (simpleCounterMap[counter]) {
+    return `${intToJapaneseReading(n)}${simpleCounterMap[counter]}`;
+  }
+
+  return `${intToJapaneseReading(n)}${counter}`;
+}
+
+function hiraganaToKatakana(str: string): string {
+  return str.replace(/[\u3041-\u3096]/g, (match) =>
+    String.fromCharCode(match.charCodeAt(0) + 0x60)
+  );
+}
+
+function normalizeJapaneseNumbersForReading(jpText: string): string {
+  return jpText.replace(
+    /(\d[\d,]*)\s*(時間制|時間|時|分制|分間|分|番ホーム|番出口|番線|番|名様|名|人前|人|号室|階|枚|本|杯|個|つ|円|歳|泊|点|%|％)/g,
+    (_m, numStr: string, counter: string) =>
+      hiraganaToKatakana(convertNumberWithCounterToHiragana(numStr, counter))
+  );
+}
+
+// ============================================================================
+// 일본어 어절·박자(文節 / Bunsetsu) 자동 띄어쓰기 분석기
+// 한국인 학습자가 눈으로 보자마자 원어민 호흡대로 끊어 읽을 수 있도록 자연스러운 박자 공백을 계산합니다.
+// ============================================================================
+function findJapaneseBunsetsuBreakIndices(jpText: string): Set<number> {
+  const breaks = new Set<number>();
+  const len = jpText.length;
+
+  const addBreak = (idx: number) => {
+    if (idx <= 0 || idx >= len) return;
+    const prev = jpText[idx - 1];
+    const curr = jpText[idx];
+    if (/[\s（(「『【]/.test(prev)) return;
+    if (/[\s、。？！?!.,）)」』】ーっッんン]/.test(curr)) return;
+    breaks.add(idx);
+  };
+
+  const applyRegexBreakAfter = (regex: RegExp) => {
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(jpText)) !== null) {
+      addBreak(m.index + m[0].length);
+    }
+  };
+
+  // 1) 문장부호·괄호 경계
+  for (let i = 0; i < len; i++) {
+    const ch = jpText[i];
+    if ('、。？！?!）)」』'.includes(ch)) {
+      addBreak(i + 1);
+    } else if ('（(「『'.includes(ch)) {
+      addBreak(i);
+    }
+  }
+
+  // 2) 인사·완충구·지시연체사·빈출 부사 뒤 호흡 분리
+  applyRegexBreakAfter(
+    /(?:すみませんが|すみません(?![がで])|申し訳ございませんが|申し訳ありませんが|恐れ入りますが|あのう|とりあえず|ちなみに|それから|そして)/g
+  );
+  applyRegexBreakAfter(
+    /(?<![ぁ-ん])(?:この|その|あの|どの|こちらの|そちらの|あちらの|どちらの|別の|他の|同じ)(?=[一-龯々ヶァ-ヴー0-9a-zA-Zおご])/g
+  );
+  applyRegexBreakAfter(
+    /(?:もう一度|もう少し|どのくらい|どのぐらい|どうやって|どうして|ゆっくり|なるべく|一緒に|別々で|別々に|そのままで|そのまま|おすすめの|おすすめ)(?=[一-龯々ヶァ-ヴーぁ-ん0-9a-zA-Z])/g
+  );
+  applyRegexBreakAfter(
+    /(?<![ぁ-ん])(?:一番|とても|少し|ちょっと|ぜひ|今すぐ)(?=[一-龯々ヶァ-ヴーぁ-ん0-9a-zA-Z])/g
+  );
+  applyRegexBreakAfter(
+    /(?<![ぁ-ん一-龯])(?:まだ|もう|すぐ)(?=[一-龯々ヶァ-ヴー0-9]|お[一-龯ぁ-ん]|ご[一-龯]|ひと|ふた|みっ|いち|に|さん|すこ)/g
+  );
+  applyRegexBreakAfter(
+    /(?:今日|明日|昨日|今)(?=[入来行出帰待使開閉買見食飲乗降泊発着]|[ァ-ヴー]|お[一-龯ぁ-ん]|ご[一-龯])/g
+  );
+
+  // 3) 명사 + 조사(を, は, の, に, で, と, も, へ, から, まで 등) 어절 경계 (お手洗い·お支払い·持ち帰り 등 오쿠리가나 명사 포함)
+  const nounTail =
+    '(?:[一-龯々ヶ][ぁ-ん]{1,2}|[一-龯々ヶァ-ヴー0-9a-zA-Z％%]+|これ|それ|あれ|どれ|ここ|そこ|あそこ|どこ|こちら|そちら|あちら|どちら|わたし|ぼく|なに|なん|だれ|いつ|方|もの|こと|ところ|ほう)';
+
+  // 목적격 조사 を는 언제나 100% 어절 경계
+  applyRegexBreakAfter(/を/g);
+
+  // 복합 조사
+  applyRegexBreakAfter(
+    new RegExp(
+      `${nounTail}(?:には|では|とは|にも|でも|まで|より|だけ|しか|くらい|ぐらい|ほど|など|ずつ)`,
+      'g'
+    )
+  );
+  // から ('分からない' 오탐 제외)
+  applyRegexBreakAfter(new RegExp(`(?<!分)${nounTail}から(?!な|ず)`, 'g'));
+
+  // 은/는 주제 조사 は
+  applyRegexBreakAfter(new RegExp(`${nounTail}は`, 'g'));
+
+  // 소유·수식 조사 の
+  applyRegexBreakAfter(
+    new RegExp(
+      `${nounTail}の(?=[一-龯々ヶァ-ヴー0-9a-zA-Z]|お[一-龯ぁ-ん]|ご[一-龯]|ほう|こと|もの|なか|うえ|した|まえ|あと|となり|ちかく|おく)`,
+      'g'
+    )
+  );
+
+  // 선택 조사 か ('静か' 등 형용동사 제외)
+  applyRegexBreakAfter(
+    new RegExp(
+      `(?<![静確暖温細穏定])${nounTail}か(?=[一-龯々ヶァ-ヴー]|お[一-龯ぁ-ん]|ご[一-龯])`,
+      'g'
+    )
+  );
+
+  // 격조사 に, で, と, も, へ, や
+  applyRegexBreakAfter(
+    new RegExp(
+      `${nounTail}(?:に|で|と|も|へ|や)(?=[一-龯々ヶァ-ヴー0-9a-zA-Z]|(?:お|ご)[一-龯ぁ-ん]|どう|どこ|いつ|どの|なに|なん|いく|いら|あり|あっ|いま|いい|だいじょうぶ|よろし|すこ|もう|まだ|ちが|なっ|なり|はい|いれ|でま|でて|きま|きて|いき|いっ)`,
+      'g'
+    )
+  );
+
+  // 주격 조사 が ('上がる/下がる/繋がる' 등 동사 내부 오탐 제외)
+  applyRegexBreakAfter(
+    new RegExp(
+      `${nounTail}が(?=[一-龯々ヶァ-ヴー0-9a-zA-Z]|(?:お|ご)[一-龯ぁ-ん]|あり|あっ|いま|いい|いた|ほし|すき|きら|にがて|だいじょうぶ|かのう|ひつよう|たり|でま|でて|きま|きて|つか|あき|あい|なか|ない|なく|わる|たか|やす|おお|すく|はや|おそ|とお|ちか|ひろ|せま|おも|かる|むずか|こわ|きも|かわ|つづ)`,
+      'g'
+    )
+  );
+
+  // 4) 절 연결어미 (~ですが, ~ますが, ~ので 등)
+  applyRegexBreakAfter(
+    /(?:ですが|ますが|んですが|のですが|けれど|けれども|なので|ですので|ますので|ましたら|でしたら|てから|ながら)/g
+  );
+  applyRegexBreakAfter(/(?:[ぁ-ん]ので|(?:ます|です|ない|たい|かった|だった)から)/g);
+
+  // 5) 보조용언 및 정중 의뢰·허가 구문 (~ても いいですか, ~て ください, ~て いただけますか 등)
+  applyRegexBreakAfter(
+    /[一-龯ぁ-ん](?:ても|でも)(?=(?:いい|よろしい|大丈夫|構いません|かまいません))/g
+  );
+  applyRegexBreakAfter(
+    /[一-龯ぁ-ん](?:ないで|なくて)(?=(?:ください|下さい|大丈夫|いい|結構|けっこう|すみません))/g
+  );
+  applyRegexBreakAfter(
+    /[一-龯ぁ-ん](?:て|で)(?=(?:ください|下さい|いただけます|いただき|もらえます|もらえ|います|いません|いました|いない|おります|おりません|しまいます|しまいました|しまった|みます|みました|みても|おきます|ほしい|くれます))/g
+  );
+
+  // 6) 형용사 관형 수식어 및 수량사 뒤 박자 분리
+  applyRegexBreakAfter(
+    /(?:大きい|小さい|新しい|古い|高い|安い|辛い|辛くない|甘い|温かい|冷たい|美味しい|おいしい|近い|遠い|広い|狭い|多い|少ない|良い|いい|悪い|早い|遅い|重い|軽い|熱い|寒い|暑い|痛い|欲しい|ほしい|静かな|有名な|きれいな|簡単な|便利な|好きな|苦手な|特別な|必要な|無料|有料)(?=[一-龯々ヶァ-ヴー]|お[一-龯ぁ-ん]|ご[一-龯]|もの|こと|ほう|とこ)/g
+  );
+  applyRegexBreakAfter(
+    /[ァ-ヴー]{3,}(?=(?:一つ|二つ|三つ|四つ|五つ|一枚|二枚|一杯|二杯|一本|二本|一人|二人|前|後|お願いします|ください|ありますか|できますか))/g
+  );
+  applyRegexBreakAfter(/(?:これ|それ|あれ)(?=(?:一つ|二つ|三つ|四つ|一枚|二枚|\d))/g);
+  applyRegexBreakAfter(
+    /(?:一つ|二つ|三つ|四つ|五つ|六つ|七つ|八つ|九つ|十|[一二三四五六七八九十百千万0-9]+(?:つ|個|枚|本|杯|人|名|階|番|分|時間|円|皿|膳|台|泊|点))(?=(?:お願い|ください|下さい|いただき|いただけます|もらえ|あり|あります))/g
+  );
+
+  return breaks;
+}
+
+// 일본어 문장(한자+가나+숫자) 전체를 어절·박자 띄어쓰기가 포함된 히라가나 읽기로 변환
 export function japaneseToHiraganaReading(jpText: string): string {
-  const segments = parseJapaneseToRubySegments(jpText);
-  const joined = segments.map((seg) => seg.furigana || seg.text).join('');
-  return katakanaToHiragana(joined);
+  if (!jpText) return '';
+  const workingJp = normalizeJapaneseNumbersForReading(jpText);
+  const breakIndices = findJapaneseBunsetsuBreakIndices(workingJp);
+  const segments = parseJapaneseToRubySegments(workingJp);
+
+  let rawCursor = 0;
+  let out = '';
+
+  for (const seg of segments) {
+    const segStart = rawCursor;
+    const segEnd = rawCursor + seg.text.length;
+
+    if (seg.furigana) {
+      if (breakIndices.has(segStart) && out && !out.endsWith(' ')) {
+        out += ' ';
+      }
+      out += seg.furigana;
+    } else {
+      for (let k = 0; k < seg.text.length; k++) {
+        const globalIdx = segStart + k;
+        if (breakIndices.has(globalIdx) && out && !out.endsWith(' ')) {
+          out += ' ';
+        }
+        out += seg.text[k];
+      }
+    }
+
+    rawCursor = segEnd;
+  }
+
+  return katakanaToHiragana(out).replace(/\s+/g, ' ').trim();
 }
 
 const DIGRAPH_KANA_MAP: Record<string, string> = {

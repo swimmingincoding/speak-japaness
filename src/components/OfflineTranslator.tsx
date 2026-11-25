@@ -236,9 +236,16 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
             registerDynamicVocabPairs(aiRes.vocabPairs);
           }
           const finalJp = aiRes.japanese.trim();
-          const finalFuri = aiRes.furigana?.trim() || japaneseToHiraganaReading(finalJp);
+          const aiFuri = aiRes.furigana?.trim() || '';
+          const aiPron = aiRes.koreanPronunciation?.trim() || '';
+          const finalFuri =
+            aiFuri && (finalJp.length < 8 || aiFuri.includes(' '))
+              ? aiFuri
+              : japaneseToHiraganaReading(finalJp);
           const finalKorPron =
-            aiRes.koreanPronunciation?.trim() || kanaToKoreanPronunciation(finalJp);
+            aiPron && (finalJp.length < 8 || aiPron.includes(' '))
+              ? aiPron
+              : kanaToKoreanPronunciation(finalJp);
 
           const aiOut: TranslationOutput = {
             japanese: finalJp,
@@ -496,6 +503,55 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     }
     setCopiedOutput(true);
     setTimeout(() => setCopiedOutput(false), 1600);
+  };
+
+  // 어절(박자) 단위로 끊어 읽기 쉽게 시각적 호흡 점(·)과 여백을 렌더링하는 헬퍼 (복사 시에는 순수 공백만 복사됨)
+  const renderRhythmicPronunciation = (
+    rawPron: string,
+    fallbackJp: string,
+    variant: 'card' | 'big' | 'sos' = 'card'
+  ) => {
+    const cleanPron =
+      rawPron && (fallbackJp.length < 7 || rawPron.includes(' '))
+        ? rawPron.trim()
+        : kanaToKoreanPronunciation(fallbackJp);
+    const chunks = cleanPron.split(/\s+/).filter(Boolean);
+
+    const textClass =
+      variant === 'big'
+        ? 'text-base sm:text-lg font-extrabold text-amber-300 leading-relaxed'
+        : variant === 'sos'
+        ? 'text-[13px] font-extrabold text-indigo-700 leading-relaxed'
+        : 'text-[15px] sm:text-base font-extrabold text-indigo-700 leading-relaxed';
+
+    const dotClass =
+      variant === 'big'
+        ? 'text-amber-500/60 font-normal select-none mx-0.5'
+        : 'text-indigo-300 font-normal select-none mx-0.5';
+
+    return (
+      <div
+        className={`flex flex-wrap items-center gap-x-1 gap-y-1 ${
+          variant === 'big' ? 'justify-center' : ''
+        } ${textClass}`}
+      >
+        {chunks.map((chunk, idx) => {
+          const isLast = idx === chunks.length - 1;
+          const endsWithPunct = /[,?.!，。？！]$/.test(chunk);
+          return (
+            <React.Fragment key={idx}>
+              <span className="tracking-tight">{chunk}</span>
+              {!isLast && !endsWithPunct && (
+                <span aria-hidden="true" className={dotClass}>
+                  ·
+                </span>
+              )}
+              {!isLast && endsWithPunct && <span className="w-1" aria-hidden="true" />}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -1058,11 +1114,18 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
               />
             </div>
 
-            {/* 1:1 매칭 한글 발음 및 한국어 의미 */}
-            <div className="p-3.5 rounded-2xl bg-white border border-indigo-100/90 space-y-1">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-extrabold text-indigo-700">
-                  발음: [{translationResult.koreanPronunciation}]
+            {/* 1:1 매칭 한글 발음(어절 박자 가이드) 및 한국어 의미 */}
+            <div className="p-3.5 rounded-2xl bg-white border border-indigo-100/90 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-1 min-w-0 flex-1">
+                  <span className="text-[10.5px] font-extrabold text-indigo-400 uppercase tracking-wider block">
+                    🗣️ 박자 맞춰 읽기
+                  </span>
+                  {renderRhythmicPronunciation(
+                    translationResult.koreanPronunciation,
+                    translationResult.japanese,
+                    'card'
+                  )}
                 </div>
                 <button
                   onClick={() =>
@@ -1070,17 +1133,17 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                       `${translationResult.japanese} [${translationResult.koreanPronunciation}]`
                     )
                   }
-                  className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer"
+                  className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 shrink-0 pt-0.5 cursor-pointer"
                   title="일본어 문장과 발음을 함께 복사"
                 >
                   <Copy className="w-3 h-3" />
                   <span>발음함께 복사</span>
                 </button>
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-slate-500 leading-relaxed">
                 히라가나: {translationResult.furigana}
               </div>
-              <div className="text-sm font-bold text-slate-800 pt-1 border-t border-slate-100">
+              <div className="text-sm font-bold text-slate-800 pt-1.5 border-t border-slate-100">
                 뜻: {translationResult.koreanMeaning}
               </div>
             </div>
@@ -1273,8 +1336,8 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                   />
                 </div>
 
-                <div className="text-xs font-bold text-indigo-600">
-                  [{item.koreanPronunciation}]
+                <div className="py-0.5">
+                  {renderRhythmicPronunciation(item.koreanPronunciation, item.japanese, 'sos')}
                 </div>
 
                 {/* 상대방 예상 답변 */}
@@ -1334,11 +1397,15 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                 rtClassName="text-xs font-bold text-amber-300"
               />
             </div>
-            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1.5">
-              <div className="text-sm font-bold text-amber-300">
-                발음: [{bigScreenPhrase.koreanPronunciation}]
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+              {renderRhythmicPronunciation(
+                bigScreenPhrase.koreanPronunciation,
+                bigScreenPhrase.japanese,
+                'big'
+              )}
+              <div className="text-sm text-emerald-300 pt-1 border-t border-slate-800">
+                {bigScreenPhrase.korean}
               </div>
-              <div className="text-sm text-emerald-300">{bigScreenPhrase.korean}</div>
             </div>
           </div>
 
