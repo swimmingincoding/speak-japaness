@@ -371,3 +371,4 @@ export const TripPackModal: React.FC<TripPackModalProps> = ({
     </div>
   );
 };
+

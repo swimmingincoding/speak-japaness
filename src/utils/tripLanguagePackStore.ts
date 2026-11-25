@@ -801,3 +801,4 @@ export async function generateCustomTripPackWithAI(
   await saveTripLanguagePack(fallbackPack);
   return fallbackPack;
 }
+
