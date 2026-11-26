@@ -109,9 +109,9 @@ export const TripPackModal: React.FC<TripPackModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
-      <div className="w-full sm:max-w-lg h-[100dvh] sm:h-auto sm:max-h-[88vh] bg-white sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]">
-        {/* 상단 헤더 */}
-        <div className="px-5 py-4 bg-gradient-to-r from-indigo-950 via-indigo-900 to-slate-900 text-white flex items-center justify-between shrink-0">
+      <div className="w-full sm:max-w-lg h-[100dvh] sm:h-auto sm:max-h-[88vh] bg-white sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom,0px)]">
+        {/* 상단 헤더 (아이폰 16 프로 다이내믹 아일랜드 뒤쪽 배경까지 그라데이션 일체화) */}
+        <div className="px-5 pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-4 pb-4 bg-gradient-to-r from-indigo-950 via-indigo-900 to-slate-900 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-2xl bg-indigo-500/25 border border-indigo-400/30 flex items-center justify-center">
               <Briefcase className="w-4 h-4 text-amber-300" />

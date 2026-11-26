@@ -38,6 +38,7 @@ import {
 } from '../utils/onDeviceNmtClient';
 import { speakJapanese, startJapaneseSpeechRecognition } from '../utils/speech';
 import { FuriganaText } from './FuriganaText';
+import { RhythmicPronunciation } from './RhythmicPronunciation';
 import { TripPackModal } from './TripPackModal';
 import { hydrateInstalledTripPacks } from '../utils/tripLanguagePackStore';
 import {
@@ -104,6 +105,26 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   );
   const [showNmtPanel, setShowNmtPanel] = useState<boolean>(false);
   const [isTripPackModalOpen, setIsTripPackModalOpen] = useState<boolean>(false);
+  const [recentHistory, setRecentHistory] = useState<
+    Array<{
+      source: string;
+      direction: 'ko-to-jp' | 'jp-to-ko';
+      output: TranslationOutput;
+    }>
+  >([]);
+
+  const pushRecentHistory = (
+    source: string,
+    dir: 'ko-to-jp' | 'jp-to-ko',
+    output: TranslationOutput
+  ) => {
+    const cleanSrc = source.trim();
+    if (cleanSrc.length < 2) return;
+    setRecentHistory((prev) => {
+      const deduped = prev.filter((item) => item.source !== cleanSrc);
+      return [{ source: cleanSrc, direction: dir, output }, ...deduped].slice(0, 5);
+    });
+  };
 
   const [selectedEmergencyCat, setSelectedEmergencyCat] = useState<
     EmergencyCategory | 'all'
@@ -170,6 +191,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     // 1. 사전 캐싱된 오프라인 언어팩 & 다중 절 구문 합성 엔진으로 0.01초 즉시 응답 (Optimistic UI)
     const offlineOut = executeOfflineTranslation(text, direction);
     setTranslationResult(offlineOut);
+    pushRecentHistory(text, direction, offlineOut);
 
     // 2. 이미 캐시된 고품질 신경망 번역이거나 98% 이상 완전 일치 오프라인/맞춤 팩인 경우 즉시 완료 (네트워크 0초)
     if (
@@ -201,6 +223,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
             tip: '아이폰 온디바이스 신경망(WASM q8)이 데이터 0바이트로 직접 추론한 결과입니다.',
           };
           setTranslationResult(nmtOut);
+          pushRecentHistory(text, direction, nmtOut);
           saveNeuralCache(text, direction, nmtOut);
           setPackStats(getOfflinePackStats());
           return true;
@@ -259,6 +282,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           };
 
           setTranslationResult(aiOut);
+          pushRecentHistory(text, direction, aiOut);
           saveNeuralCache(text, direction, aiOut);
           setPackStats(getOfflinePackStats());
           setIsTranslating(false);
@@ -380,6 +404,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           };
 
           setTranslationResult(liveOut);
+          pushRecentHistory(text, direction, liveOut);
           saveNeuralCache(text, direction, liveOut);
           setPackStats(getOfflinePackStats());
           return;
@@ -503,55 +528,6 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     }
     setCopiedOutput(true);
     setTimeout(() => setCopiedOutput(false), 1600);
-  };
-
-  // 어절(박자) 단위로 끊어 읽기 쉽게 시각적 호흡 점(·)과 여백을 렌더링하는 헬퍼 (복사 시에는 순수 공백만 복사됨)
-  const renderRhythmicPronunciation = (
-    rawPron: string,
-    fallbackJp: string,
-    variant: 'card' | 'big' | 'sos' = 'card'
-  ) => {
-    const cleanPron =
-      rawPron && (fallbackJp.length < 7 || rawPron.includes(' '))
-        ? rawPron.trim()
-        : kanaToKoreanPronunciation(fallbackJp);
-    const chunks = cleanPron.split(/\s+/).filter(Boolean);
-
-    const textClass =
-      variant === 'big'
-        ? 'text-base sm:text-lg font-extrabold text-amber-300 leading-relaxed'
-        : variant === 'sos'
-        ? 'text-[13px] font-extrabold text-indigo-700 leading-relaxed'
-        : 'text-[15px] sm:text-base font-extrabold text-indigo-700 leading-relaxed';
-
-    const dotClass =
-      variant === 'big'
-        ? 'text-amber-500/60 font-normal select-none mx-0.5'
-        : 'text-indigo-300 font-normal select-none mx-0.5';
-
-    return (
-      <div
-        className={`flex flex-wrap items-center gap-x-1 gap-y-1 ${
-          variant === 'big' ? 'justify-center' : ''
-        } ${textClass}`}
-      >
-        {chunks.map((chunk, idx) => {
-          const isLast = idx === chunks.length - 1;
-          const endsWithPunct = /[,?.!，。？！]$/.test(chunk);
-          return (
-            <React.Fragment key={idx}>
-              <span className="tracking-tight">{chunk}</span>
-              {!isLast && !endsWithPunct && (
-                <span aria-hidden="true" className={dotClass}>
-                  ·
-                </span>
-              )}
-              {!isLast && endsWithPunct && <span className="w-1" aria-hidden="true" />}
-            </React.Fragment>
-          );
-        })}
-      </div>
-    );
   };
 
   return (
@@ -928,7 +904,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                   ? '번역할 문장을 입력하세요 (예: 예약은 안 했는데 두 명 자리 있나요?)'
                   : '일본어 문장을 입력하거나 마이크로 들려주세요'
               }
-              className="w-full text-[15px] font-semibold text-slate-900 placeholder:text-slate-400 bg-transparent resize-none focus:outline-none pr-8"
+              className="w-full text-[16px] font-semibold text-slate-900 placeholder:text-slate-400 bg-transparent resize-none focus:outline-none pr-8"
             />
             {inputText && (
               <button
@@ -994,11 +970,11 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                     <span>
                       {effectiveOffline && nmtStatus.enabled
                         ? '🧠 아이폰 온디바이스 신경망 교정 중...'
-                        : '⚡ Gemini 3.8 초고속 업그레이드 중...'}
+                        : '⚡ Gemini Flash AI 초고속 업그레이드 중...'}
                     </span>
                   </>
                 ) : translationResult.engineType === 'gemini-ai' ? (
-                  '✨ Gemini 3.8 AI 초고속 번역 완료'
+                  '✨ Gemini Flash AI 초고속 번역 완료'
                 ) : translationResult.engineType === 'openai-ai' ? (
                   '✨ OpenAI GPT 실시간 번역'
                 ) : translationResult.engineType === 'on-device-nmt' ? (
@@ -1121,11 +1097,10 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                   <span className="text-[10.5px] font-extrabold text-indigo-400 uppercase tracking-wider block">
                     🗣️ 박자 맞춰 읽기
                   </span>
-                  {renderRhythmicPronunciation(
-                    translationResult.koreanPronunciation,
-                    translationResult.japanese,
-                    'card'
-                  )}
+                  <RhythmicPronunciation
+                    pronunciation={translationResult.koreanPronunciation}
+                    japanese={translationResult.japanese}
+                  />
                 </div>
                 <button
                   onClick={() =>
@@ -1157,6 +1132,45 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           </div>
         )}
       </div>
+
+      {/* 2-B. 최근 주고받은 번역 미니 히스토리 (점원과 연속 대화 시 직전 문장 1초 재호출) */}
+      {recentHistory.length > 1 && (
+        <div className="rounded-[22px] bg-white border border-slate-200/80 p-3.5 space-y-2 shadow-2xs">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-extrabold text-slate-700">
+              🕒 방금 번역한 대화 기록 ({recentHistory.length})
+            </span>
+            <button
+              type="button"
+              onClick={() => setRecentHistory([])}
+              className="text-[11px] font-bold text-slate-400 hover:text-rose-500 cursor-pointer"
+            >
+              비우기
+            </button>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
+            {recentHistory.map((hist, hIdx) => (
+              <button
+                key={hIdx}
+                type="button"
+                onClick={() => {
+                  setDirection(hist.direction);
+                  setInputText(hist.source);
+                  setTranslationResult(hist.output);
+                }}
+                className="shrink-0 max-w-[230px] text-left px-3 py-2 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200/80 hover:border-indigo-200 transition cursor-pointer"
+              >
+                <div className="text-[11px] font-bold text-slate-800 truncate">
+                  {hist.source}
+                </div>
+                <div className="text-[10.5px] font-semibold text-indigo-600 truncate">
+                  → {hist.direction === 'ko-to-jp' ? hist.output.japanese : hist.output.koreanMeaning}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 3. 오프라인 언어팩 상황별 원터치 문장 칩 (탭 한 번으로 즉시 번역 & 음성 출력) */}
       <div className="rounded-[24px] bg-white border border-slate-200/80 p-5 space-y-3.5 shadow-sm">
@@ -1337,7 +1351,11 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                 </div>
 
                 <div className="py-0.5">
-                  {renderRhythmicPronunciation(item.koreanPronunciation, item.japanese, 'sos')}
+                  <RhythmicPronunciation
+                    pronunciation={item.koreanPronunciation}
+                    japanese={item.japanese}
+                    variant="compact"
+                  />
                 </div>
 
                 {/* 상대방 예상 답변 */}
@@ -1398,11 +1416,11 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
               />
             </div>
             <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
-              {renderRhythmicPronunciation(
-                bigScreenPhrase.koreanPronunciation,
-                bigScreenPhrase.japanese,
-                'big'
-              )}
+              <RhythmicPronunciation
+                pronunciation={bigScreenPhrase.koreanPronunciation}
+                japanese={bigScreenPhrase.japanese}
+                variant="big"
+              />
               <div className="text-sm text-emerald-300 pt-1 border-t border-slate-800">
                 {bigScreenPhrase.korean}
               </div>

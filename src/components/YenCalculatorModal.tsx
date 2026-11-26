@@ -24,15 +24,41 @@ interface YenCalculatorModalProps {
   onClose: () => void;
 }
 
-interface CartItem {
+export interface CartItem {
   id: string;
   rawYen: number;
   finalYen: number;
   isTaxExclusive: boolean;
+  label?: string;
 }
 
 const STORAGE_RATE_KEY = 'tabitalk_exchange_rate_v1';
 const STORAGE_CART_KEY = 'tabitalk_shopping_cart_v1';
+
+/**
+ * 외부 컴포넌트(메뉴판 AI 스캐너 등)에서 판독한 메뉴 가격을 엔화 계산기 장바구니에 원터치로 추가합니다.
+ */
+export function addExternalItemToYenCart(yenAmount: number, label?: string): number {
+  if (!Number.isFinite(yenAmount) || yenAmount <= 0) return 0;
+  try {
+    const raw = localStorage.getItem(STORAGE_CART_KEY);
+    const prev: CartItem[] = raw ? JSON.parse(raw) : [];
+    const next: CartItem[] = [
+      ...prev,
+      {
+        id: `scan-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+        rawYen: Math.round(yenAmount),
+        finalYen: Math.round(yenAmount),
+        isTaxExclusive: false,
+        label: label?.slice(0, 14),
+      },
+    ];
+    localStorage.setItem(STORAGE_CART_KEY, JSON.stringify(next));
+    return next.length;
+  } catch {
+    return 0;
+  }
+}
 const DEFAULT_RATE_PER_100_YEN = 910; // 100엔당 910원 (기본값)
 const TAX_FREE_THRESHOLD_JPY = 5500; // 일본 면세 기준선 5,500엔 (세금 포함)
 
@@ -135,6 +161,18 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      try {
+        const saved = localStorage.getItem(STORAGE_CART_KEY);
+        if (saved) {
+          const parsed: CartItem[] = JSON.parse(saved);
+          setCartItems(parsed);
+          if (parsed.length > 0) {
+            setInputStr('0');
+          }
+        }
+      } catch {
+        // ignore
+      }
     } else {
       document.body.style.overflow = 'unset';
     }
@@ -389,7 +427,7 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
               type="number"
               value={tempRateInput}
               onChange={(e) => setTempRateInput(e.target.value)}
-              className="w-24 px-2 py-1 bg-white border border-amber-300 rounded-lg text-center font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="w-24 px-2 py-1 bg-white border border-amber-300 rounded-lg text-center font-bold text-[16px] sm:text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
               placeholder="예: 910"
             />
             <span className="text-slate-700 font-bold">원</span>
@@ -536,7 +574,9 @@ export const YenCalculatorModal: React.FC<YenCalculatorModalProps> = ({ isOpen, 
                     key={item.id}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-indigo-200 text-xs font-bold text-slate-800 shadow-2xs"
                   >
-                    <span className="text-[10px] text-slate-400">#{idx + 1}</span>
+                    <span className="text-[10px] text-slate-400">
+                      {item.label ? item.label : `#${idx + 1}`}
+                    </span>
                     <span className="font-mono">{item.finalYen.toLocaleString()}円</span>
                     <button
                       onClick={() => handleRemoveCartItem(item.id)}

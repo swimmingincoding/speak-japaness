@@ -23,12 +23,15 @@ import {
 } from '../utils/aiService';
 import { speakJapanese, unlockSpeechForIOS } from '../utils/speech';
 import { AIConfig, SavedExpression } from '../types/conversation';
+import { RhythmicPronunciation } from './RhythmicPronunciation';
+import { addExternalItemToYenCart } from './YenCalculatorModal';
 
 interface CameraMenuScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   aiConfig?: AIConfig;
   onSaveExpression?: (expr: SavedExpression) => void;
+  onOpenYenCalculator?: () => void;
 }
 
 // 오프라인 / 데모 테스트용 대표 일본 맛집 메뉴판 프리셋
@@ -155,6 +158,7 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
   onClose,
   aiConfig,
   onSaveExpression,
+  onOpenYenCalculator,
 }) => {
   // 후면 카메라 직접 호출용 input과 사진 앨범 선택용 input을 완전히 분리 (속성 증발 버그 방지)
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -170,6 +174,8 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
   const [focusedItem, setFocusedItem] = useState<VisionMenuItem | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [savedKey, setSavedKey] = useState<string | null>(null);
+  const [addedCartKey, setAddedCartKey] = useState<string | null>(null);
+  const [cartNoticeCount, setCartNoticeCount] = useState<number>(0);
 
   useEffect(() => {
     if (isOpen) {
@@ -470,8 +476,26 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
                 )}
               </div>
 
+              {cartNoticeCount > 0 && (
+                <div className="px-3.5 py-2.5 rounded-2xl bg-amber-50 border border-amber-300 flex items-center justify-between text-xs font-bold text-amber-950 animate-fadeIn">
+                  <span>💴 계산기 바구니에 담겼습니다 (총 {cartNoticeCount}개 품목)</span>
+                  {onOpenYenCalculator && (
+                    <button
+                      onClick={onOpenYenCalculator}
+                      className="px-2.5 py-1 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-[11px] cursor-pointer shrink-0"
+                    >
+                      합계·와리깡 보기 →
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2.5">
-                {scanResult.items.map((item, idx) => (
+                {scanResult.items.map((item, idx) => {
+                  const numericYen = item.price
+                    ? parseInt(item.price.replace(/[^0-9]/g, ''), 10) || 0
+                    : 0;
+                  return (
                   <div
                     key={idx}
                     className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-2 hover:border-indigo-300 transition"
@@ -488,15 +512,42 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
                             {item.japanese}
                           </span>
                         </div>
-                        <div className="text-xs font-bold text-indigo-600">
-                          {item.furigana && `(${item.furigana})`} · [{item.pronunciation}]
-                        </div>
+                        <RhythmicPronunciation
+                          pronunciation={item.pronunciation}
+                          japanese={item.japanese}
+                          variant="compact"
+                        />
                       </div>
 
                       {item.price && (
-                        <span className="font-black text-sm text-slate-900 font-mono bg-slate-100 px-2 py-0.5 rounded-lg shrink-0">
-                          {item.price}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (numericYen > 0) {
+                              const totalCount = addExternalItemToYenCart(
+                                numericYen,
+                                item.koreanTranslation
+                              );
+                              setCartNoticeCount(totalCount);
+                              setAddedCartKey(`cart_${idx}`);
+                              setTimeout(() => setAddedCartKey(null), 1600);
+                            }
+                          }}
+                          className={`font-black text-xs px-2.5 py-1 rounded-xl shrink-0 transition cursor-pointer flex items-center gap-1 border ${
+                            addedCartKey === `cart_${idx}`
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-amber-50 hover:bg-amber-100 text-slate-900 border-amber-200 font-mono'
+                          }`}
+                          title="탭하면 엔화 계산기 장바구니에 바로 추가됩니다"
+                        >
+                          {addedCartKey === `cart_${idx}` ? (
+                            <>
+                              <Check className="w-3 h-3" /> 담김!
+                            </>
+                          ) : (
+                            <>💴 {item.price} +</>
+                          )}
+                        </button>
                       )}
                     </div>
 
@@ -558,7 +609,8 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -603,9 +655,11 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
                   {focusedItem.japanese}
                 </div>
                 <div className="text-2xl font-bold text-white">をお願いします</div>
-                <div className="text-sm font-bold text-indigo-300">
-                  [{focusedItem.pronunciation} 오네가이시마스]
-                </div>
+                <RhythmicPronunciation
+                  pronunciation={`${focusedItem.pronunciation} 오네가이시마스`}
+                  japanese={`${focusedItem.japanese}をお願いします`}
+                  variant="big"
+                />
               </div>
 
               {focusedItem.price && (

@@ -5,6 +5,7 @@
  */
 
 import { AIConfig } from '../types/conversation';
+import { getGeminiModelsToTry, recordWorkingGeminiModel } from './aiService';
 import {
   registerDynamicCorpusItems,
   registerDynamicVocabPairs,
@@ -632,11 +633,7 @@ export async function generateCustomTripPackWithAI(
 }`;
 
   if (isGemini && navigator.onLine) {
-    const models = [
-      aiConfig?.model || 'gemini-3.8-flash',
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-    ];
+    const models = getGeminiModelsToTry(aiConfig?.model);
     for (const model of models) {
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
@@ -660,6 +657,7 @@ export async function generateCustomTripPackWithAI(
           }),
         });
         if (res.ok) {
+          recordWorkingGeminiModel(model);
           const data = await res.json();
           const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
           const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());

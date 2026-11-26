@@ -22,8 +22,30 @@ import {
   kanaToKoreanPronunciation,
 } from '../utils/japanesePhonetics';
 import { generatePartnerReply } from '../utils/aiService';
-import { Scenario, RoleType, AIConfig, SavedExpression } from '../types/conversation';
+import { Scenario, RoleType, AIConfig, SavedExpression, CategoryType } from '../types/conversation';
 import { FuriganaText } from './FuriganaText';
+import { RhythmicPronunciation } from './RhythmicPronunciation';
+
+function toJapanesePhonePlaceName(placeName: string, category: CategoryType): string {
+  if (!/[가-힣]/.test(placeName)) return placeName;
+  if (/라멘/.test(placeName)) return 'ラーメン店';
+  if (/이자카야|술집|바/.test(placeName)) return '居酒屋';
+  if (/스시|초밥|오마카세/.test(placeName)) return 'お寿司屋';
+  if (/야키니쿠|고기/.test(placeName)) return '焼肉店';
+  if (/카페|커피/.test(placeName)) return 'カフェ';
+  if (/편의점/.test(placeName)) return 'コンビニ';
+  if (/드럭스토어|약국/.test(placeName)) return 'ドラッグストア';
+  if (/백화점|면세|쇼핑/.test(placeName)) return 'お店の案内係';
+  if (/료칸|온천/.test(placeName)) return '旅館のフロント';
+  if (/호텔|숙소/.test(placeName)) return 'ホテルのフロント';
+  if (/공항/.test(placeName)) return '空港の案内カウンター';
+  if (/택시/.test(placeName)) return 'タクシー配車センター';
+  if (/역|전철|신칸센/.test(placeName)) return '駅の案内窓口';
+  if (category === 'hotel') return 'ホテルのフロント';
+  if (category === 'transport') return '案内窓口';
+  if (category === 'convenience') return 'お店のスタッフ';
+  return 'レストラン';
+}
 
 interface LiveCallModalProps {
   isOpen: boolean;
@@ -133,10 +155,11 @@ export const LiveCallModal: React.FC<LiveCallModalProps> = ({
     setIsUserListening(false);
   };
 
-  // 통화 연결 시 오프닝 멘트
+  // 통화 연결 시 오프닝 멘트 (한국어 장소명이 일본어 TTS에 섞이지 않도록 일본어 매장 호칭으로 자동 매핑)
+  const jpStoreLabel = toJapanesePhonePlaceName(scenario.placeName, scenario.category);
   const openingJapanese =
     userRole === 'customer'
-      ? `もしもし、${scenario.placeName}でございます。ご用件をお伺いできますでしょうか？`
+      ? `もしもし、${jpStoreLabel}でございます。ご用件をお伺いできますでしょうか？`
       : `もしもし、お忙しいところ恐れ入ります。少しお伺いしてもよろしいでしょうか？`;
 
   const openingFurigana = japaneseToHiraganaReading(openingJapanese);
@@ -146,10 +169,7 @@ export const LiveCallModal: React.FC<LiveCallModalProps> = ({
       ? `여보세요, ${scenario.placeName}입니다. 어떤 용건이신가요?`
       : `여보세요, 바쁘신 와중에 실례합니다. 잠시 여쭤봐도 될까요?`;
 
-  const openingReading =
-    userRole === 'customer'
-      ? `모시모시, ${scenario.placeName}데 고자이마스. 고요-켄오 오우카가이 데키마스데쇼-카?`
-      : `모시모시, 오이소가시이 토코로 오소레이리마스. 스코시 오우카가이시테모 요로시이데쇼-카?`;
+  const openingReading = kanaToKoreanPronunciation(openingJapanese);
 
   // 사용자 음성 인식 시작 (핸즈프리 + Ref 안전 체크)
   const startListeningForUser = () => {
@@ -533,9 +553,11 @@ export const LiveCallModal: React.FC<LiveCallModalProps> = ({
                   <Volume2 className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="text-xs text-indigo-200 font-medium">
-                [{currentAiSpeech.reading}]
-              </div>
+              <RhythmicPronunciation
+                pronunciation={currentAiSpeech.reading}
+                japanese={currentAiSpeech.japanese}
+                variant="dark"
+              />
               <div className="text-xs text-slate-300 font-bold pt-1.5 border-t border-white/10">
                 {currentAiSpeech.korean}
               </div>
@@ -573,10 +595,13 @@ export const LiveCallModal: React.FC<LiveCallModalProps> = ({
                     className="w-full p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition text-left cursor-pointer disabled:opacity-50"
                   >
                     <div>{hint.japanese}</div>
-                    <div className="text-[10.5px] text-amber-300 font-semibold mt-0.5">
-                      [{hint.koreanPronunciation}]
-                    </div>
-                    <div className="text-[10.5px] text-slate-300 font-normal">
+                    <RhythmicPronunciation
+                      pronunciation={hint.koreanPronunciation}
+                      japanese={hint.japanese}
+                      variant="bubble-user"
+                      className="mt-0.5"
+                    />
+                    <div className="text-[10.5px] text-slate-300 font-normal mt-0.5">
                       {hint.koreanTranslation}
                     </div>
                   </button>
@@ -647,9 +672,11 @@ export const LiveCallModal: React.FC<LiveCallModalProps> = ({
                         </div>
                       </div>
                       <p className="text-white font-bold">{turn.japanese}</p>
-                      {turn.reading && (
-                        <p className="text-[11px] text-indigo-300">[{turn.reading}]</p>
-                      )}
+                      <RhythmicPronunciation
+                        pronunciation={turn.reading}
+                        japanese={turn.japanese}
+                        variant="bubble-user"
+                      />
                       <p className="text-[11px] text-slate-400">{turn.korean}</p>
                     </div>
                   );

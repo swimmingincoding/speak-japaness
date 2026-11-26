@@ -1,7 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="28" fill="#e11d48"/>
-  <circle cx="64" cy="60" r="34" fill="#ffffff"/>
-  <circle cx="64" cy="60" r="16" fill="#e11d48"/>
-  <path d="M36 96 C46 86, 82 86, 92 96" stroke="#ffffff" stroke-width="8" stroke-linecap="round" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="55%" stop-color="#4338CA" />
+      <stop offset="100%" stop-color="#1E1B4B" />
+    </linearGradient>
+    <linearGradient id="sun" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <circle cx="382" cy="134" r="54" fill="url(#sun)" opacity="0.92" />
+  <path
+    d="M116 156 C116 125, 141 100, 172 100 L340 100 C371 100, 396 125, 396 156 L396 296 C396 327, 371 352, 340 352 L238 352 L166 412 C156 420, 142 413, 142 400 L142 352 C126 346, 116 324, 116 296 Z"
+    fill="#FFFFFF"
+  />
+  <circle cx="256" cy="226" r="58" fill="#E11D48" />
+  <path
+    d="M196 302 C222 282, 290 282, 316 302"
+    stroke="#4F46E5"
+    stroke-width="18"
+    stroke-linecap="round"
+    fill="none"
+  />
 </svg>
-

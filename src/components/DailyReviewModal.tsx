@@ -22,6 +22,7 @@ import { speakJapanese, unlockSpeechForIOS } from '../utils/speech';
 import { SavedExpression } from '../types/conversation';
 import { N3_VOCAB_LIST } from '../data/n3Vocab';
 import { FuriganaText } from './FuriganaText';
+import { RhythmicPronunciation } from './RhythmicPronunciation';
 
 interface DailyReviewModalProps {
   isOpen: boolean;
@@ -257,8 +258,12 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
                         />
                       </div>
                       {showFuriganaHint && (
-                        <div className="text-xs font-bold text-indigo-600 animate-fadeIn">
-                          [{currentItem.koreanPronunciation}]
+                        <div className="flex justify-center animate-fadeIn">
+                          <RhythmicPronunciation
+                            pronunciation={currentItem.koreanPronunciation}
+                            japanese={currentItem.japanese}
+                            variant="compact"
+                          />
                         </div>
                       )}
                     </>
@@ -270,9 +275,11 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
                       <div className="text-sm font-bold text-white">
                         {currentItem.japanese} ({currentItem.furigana})
                       </div>
-                      <div className="text-xs font-bold text-indigo-200">
-                        [{currentItem.koreanPronunciation}]
-                      </div>
+                      <RhythmicPronunciation
+                        pronunciation={currentItem.koreanPronunciation}
+                        japanese={currentItem.japanese}
+                        variant="dark"
+                      />
                     </div>
                   )}
                 </div>

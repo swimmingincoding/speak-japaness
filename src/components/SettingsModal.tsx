@@ -1,5 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { AIConfig, DisplaySettings } from '../types/conversation';
+import {
+  hydrateInstalledTripPacks,
+  saveTripLanguagePack,
+  TripLanguagePack,
+} from '../utils/tripLanguagePackStore';
 import { X, Cpu, Volume2, Eye, Check, Download, Upload, Database } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -26,8 +31,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
-  // 내 단어장 · 커스텀 시나리오 · 망각곡선 · 스트릭 전체 데이터 JSON 백업 내보내기
-  const handleExportBackup = () => {
+  // 내 단어장 · 커스텀 시나리오 · 망각곡선 · 스트릭 · 맞춤 여행 언어팩(IndexedDB) 전체 데이터 JSON 백업 내보내기
+  const handleExportBackup = async () => {
     try {
       const backupPayload: Record<string, string> = {};
       for (let i = 0; i < localStorage.length; i++) {
@@ -38,11 +43,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           if (val !== null) backupPayload[key] = val;
         }
       }
+      const tripPacks = await hydrateInstalledTripPacks();
       const jsonStr = JSON.stringify(
         {
           exportedAt: new Date().toISOString(),
           app: 'TabiTalk',
           data: backupPayload,
+          tripPacks,
         },
         null,
         2
@@ -56,20 +63,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 3000);
-      setBackupMessage('✅ 단어장·학습 기록 백업 파일이 저장되었습니다.');
+      setBackupMessage(
+        `✅ 단어장·학습 기록 및 맞춤 언어팩(${tripPacks.length}개) 백업이 저장되었습니다.`
+      );
     } catch {
       setBackupMessage('⚠️ 백업 파일 생성 중 오류가 발생했습니다.');
     }
   };
 
-  // JSON 백업 파일 불러오기 및 복원
+  // JSON 백업 파일 불러오기 및 복원 (IndexedDB 맞춤 여행 언어팩 포함)
   const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
         const parsed = JSON.parse(ev.target?.result as string);
         const dataMap = parsed?.data;
@@ -84,7 +93,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             count++;
           }
         });
-        setBackupMessage(`🎉 ${count}개 학습 항목이 성공적으로 복원되었습니다!`);
+        let packCount = 0;
+        if (Array.isArray(parsed?.tripPacks)) {
+          for (const pack of parsed.tripPacks as TripLanguagePack[]) {
+            if (pack?.id && Array.isArray(pack.sentences)) {
+              await saveTripLanguagePack(pack);
+              packCount++;
+            }
+          }
+        }
+        setBackupMessage(
+          `🎉 학습 항목 ${count}개${packCount > 0 ? ` · 맞춤 언어팩 ${packCount}개` : ''}가 복원되었습니다!`
+        );
         onDataRestored?.();
       } catch {
         setBackupMessage('⚠️ 백업 파일을 읽을 수 없습니다.');
@@ -197,6 +217,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               ⚡ 실제 현지 속도 (1.0x)
             </button>
           </div>
+          <p className="text-[11px] text-slate-500 bg-amber-50/70 border border-amber-200/70 rounded-xl px-3 py-2 leading-relaxed">
+            📱 <strong>아이폰 무음 모드 안내:</strong> 측면 액션 버튼(벨소리 무음)이 켜져 있으면 iOS 정책상 음성이 들리지 않을 수 있으니 소리가 안 날 땐 무음 해제를 확인해 주세요.
+          </p>
         </div>
 
         {/* 3. 실전 AI 프리토킹 & 실시간 AI 번역 엔진 설정 */}
@@ -209,7 +232,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {(
               [
                 { id: 'simulation', label: '내장 오프라인' },
-                { id: 'gemini', label: 'Gemini 3.8 Flash' },
+                { id: 'gemini', label: 'Gemini Flash' },
                 { id: 'openai', label: 'OpenAI GPT' },
               ] as const
             ).map((opt) => (
@@ -231,7 +254,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="space-y-2.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {aiConfig.provider === 'openai' ? 'OpenAI API Key' : 'Gemini 3.8 Flash API Key'}
+                  {aiConfig.provider === 'openai' ? 'OpenAI API Key' : 'Google Gemini API Key'}
                 </label>
                 <input
                   type="password"
@@ -251,10 +274,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   placeholder={
                     aiConfig.provider === 'openai' ? 'sk-proj-...' : 'AIzaSy...'
                   }
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-[16px] sm:text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                 />
                 <p className="text-[11px] text-emerald-700 font-semibold mt-1.5 leading-relaxed">
-                  ✨ Google AI Studio의 <strong>Gemini 3.8 Flash</strong> 모델이 최우선 작동하여 [AI 프리토킹], [자유 주제 대화], [실시간 번역], [메뉴판 스캔] 모두 원어민 수준의 자연스러움을 제공합니다.
+                  ✨ Google AI Studio의 <strong>Gemini 2.5 Flash</strong> 고속 모델이 작동하여 [AI 프리토킹], [자유 주제 대화], [실시간 번역], [메뉴판 스캔] 모두 원어민 수준의 자연스러움을 제공합니다.
                 </p>
               </div>
             </div>

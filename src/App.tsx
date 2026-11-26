@@ -494,6 +494,10 @@ export const App: React.FC = () => {
             onClose={() => setIsCameraScannerOpen(false)}
             aiConfig={aiConfig}
             onSaveExpression={handleToggleSave}
+            onOpenYenCalculator={() => {
+              setIsCameraScannerOpen(false);
+              setIsYenCalculatorOpen(true);
+            }}
           />
         </Suspense>
 

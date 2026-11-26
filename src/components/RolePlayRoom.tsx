@@ -24,6 +24,7 @@ import { executeOfflineTranslation } from '../utils/offlineEngine';
 import { generatePartnerReply, generateCustomTopicOpening, translateWithAI } from '../utils/aiService';
 import { CURATED_FREETALK_TOPICS, FreeTalkTopic, createCustomTopic } from '../data/freeTalkTopics';
 import { FuriganaText } from './FuriganaText';
+import { RhythmicPronunciation } from './RhythmicPronunciation';
 import { LiveCallModal } from './LiveCallModal';
 import {
   ArrowLeft,
@@ -769,11 +770,13 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                           </div>
                         </div>
 
-                        {/* 한글 발음 */}
+                        {/* 한글 발음 (박자 가이드) */}
                         {displaySettings.showKoreanPronunciation && (
-                          <div className="text-xs sm:text-sm font-extrabold text-indigo-600">
-                            [{turn.koreanPronunciation}]
-                          </div>
+                          <RhythmicPronunciation
+                            pronunciation={turn.koreanPronunciation}
+                            japanese={turn.japanese}
+                            variant="compact"
+                          />
                         )}
 
                         {/* 한국어 번역 */}
@@ -1087,16 +1090,13 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                           </button>
                         </div>
                       </div>
-                      {displaySettings.showKoreanPronunciation &&
-                        msg.koreanPronunciation && (
-                          <div
-                            className={`text-xs font-bold whitespace-pre-wrap ${
-                              isUser ? 'text-amber-200' : 'text-indigo-600'
-                            }`}
-                          >
-                            [{msg.koreanPronunciation}]
-                          </div>
-                        )}
+                      {displaySettings.showKoreanPronunciation && (
+                        <RhythmicPronunciation
+                          pronunciation={msg.koreanPronunciation}
+                          japanese={msg.japanese}
+                          variant={isUser ? 'bubble-user' : 'compact'}
+                        />
+                      )}
                       {displaySettings.showTranslation && msg.koreanTranslation && (
                         <div
                           className={`text-sm font-medium whitespace-pre-wrap ${
@@ -1246,9 +1246,11 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                     <div className="font-black text-slate-900 text-sm truncate">
                       {getActiveTargetPhrase(currentTurn).japanese}
                     </div>
-                    <div className="text-[11px] font-extrabold text-indigo-600 truncate">
-                      [{getActiveTargetPhrase(currentTurn).koreanPronunciation}]
-                    </div>
+                    <RhythmicPronunciation
+                      pronunciation={getActiveTargetPhrase(currentTurn).koreanPronunciation}
+                      japanese={getActiveTargetPhrase(currentTurn).japanese}
+                      variant="compact"
+                    />
                   </div>
 
                   {speechResult && (
@@ -1361,8 +1363,8 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                   }
                 }}
                 rows={1}
-                placeholder="일본어로 말하거나 한국어로 입력해보세요... (Shift+Enter 줄바꿈)"
-                className="flex-1 px-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-indigo-500 font-medium resize-none max-h-28 min-h-[44px] leading-relaxed no-scrollbar"
+                placeholder="일본어로 말하거나 한국어로 입력해보세요..."
+                className="flex-1 px-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-[16px] sm:text-sm text-slate-900 focus:outline-none focus:border-indigo-500 font-medium resize-none max-h-28 min-h-[44px] leading-relaxed no-scrollbar"
               />
               <button
                 onClick={() => handleSendFreeTalk()}
@@ -1419,7 +1421,7 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                       if (e.key === 'Enter') handleCreateCustomFreeTalkTopic(customTopicInput);
                     }}
                     placeholder="예: 이자카야에서 옆자리 사람과 애니메이션 이야기하기..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-emerald-300 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 font-medium"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-emerald-300 text-[16px] sm:text-xs text-slate-900 focus:outline-none focus:border-emerald-600 font-medium"
                   />
 
                   {/* 빠른 추천 입력 칩 */}

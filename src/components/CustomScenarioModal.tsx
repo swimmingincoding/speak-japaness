@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
 import { AIConfig, CategoryType, Scenario } from '../types/conversation';
+import { getGeminiModelsToTry, recordWorkingGeminiModel } from '../utils/aiService';
+import {
+  japaneseToHiraganaReading,
+  kanaToKoreanPronunciation,
+} from '../utils/japanesePhonetics';
 import { X, Sparkles, PlusCircle, Loader2 } from 'lucide-react';
 
 interface CustomScenarioModalProps {
@@ -30,14 +35,10 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
 
     setIsGenerating(true);
 
-    // Gemini API 키가 설정된 경우 실시간 AI로 맞춤 4턴 시나리오 생성 시도
-    if (aiConfig.provider === 'gemini' && aiConfig.apiKey.trim()) {
-      try {
-        const model = aiConfig.model || 'gemini-3.8-flash';
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
-          aiConfig.apiKey.trim()
-        )}`;
-        const prompt = `사용자가 원하는 일본 여행 회화 상황을 양방향(손님 A ↔ 종업원 B) 4턴 롤플레잉 시나리오 JSON으로 작성하세요.
+    const key = aiConfig?.apiKey?.trim() || '';
+    const isGeminiKey =
+      Boolean(key) && (aiConfig.provider === 'gemini' || key.startsWith('AIza'));
+    const prompt = `사용자가 원하는 일본 여행 회화 상황을 양방향(손님 A ↔ 종업원 B) 4턴 롤플레잉 시나리오 JSON으로 작성하세요.
 주제: ${cleanTopic}
 장소: ${cleanPlace}
 목표: ${cleanGoal}
@@ -52,8 +53,8 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
     {
       "speaker": "staff",
       "japanese": "일본어 문장",
-      "furigana": "히라가나 읽기",
-      "koreanPronunciation": "한글 발음",
+      "furigana": "어절 단위로 띄어쓴 히라가나 읽기",
+      "koreanPronunciation": "어절 단위로 띄어쓴 한글 발음",
       "koreanTranslation": "한국어 뜻",
       "realLifeTip": "실생활 팁",
       "staffKeigoPoint": "종업원 접객 경어 포인트",
@@ -61,71 +62,92 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
     }
   ]
 }`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json' },
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
-          if (parsed?.turns?.length >= 2) {
-            const customId = `custom-${Date.now()}`;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const mappedTurns = parsed.turns.map((t: any, idx: number) => ({
-              id: `${customId}-t${idx}`,
-              speaker: t.speaker === 'customer' ? 'customer' : 'staff',
-              speakerLabel: t.speaker === 'customer' ? '손님 (A)' : '종업원 (B)',
-              japanese: t.japanese,
-              furigana: t.furigana,
-              koreanPronunciation: t.koreanPronunciation,
-              koreanTranslation: t.koreanTranslation,
-              realLifeTip: t.realLifeTip || '핵심 키워드에 집중해보세요!',
-              staffKeigoPoint: t.staffKeigoPoint,
-              vocab: Array.isArray(t.vocab) ? t.vocab : [],
-            }));
 
-            const created: Scenario = {
-              id: customId,
-              category,
-              title: parsed.title || cleanTopic,
-              subtitle: parsed.subtitle || cleanGoal,
-              placeName: cleanPlace,
-              difficulty: '실전',
-              estimatedMinutes: 4,
-              customerRoleName: '손님 (A)',
-              staffRoleName: '종업원 (B)',
-              situationBrief: `${cleanPlace}에서 "${cleanTopic}" 상황을 진행합니다. (${cleanGoal})`,
-              whyHardToUnderstand:
-                parsed.whyHardToUnderstand ||
-                '종업원이 매뉴얼화된 접객 경어로 옵션을 빠르게 확인하기 때문에 핵심 단어를 캐치하는 것이 중요합니다.',
-              keyTakeaways: parsed.keyTakeaways || [cleanGoal],
-              turns: mappedTurns,
-              freeTalkStarter: {
-                customerStarts: {
-                  staffOpening: mappedTurns[0],
-                  missions: [cleanGoal, '점원의 확인 질문에 답하기', '계산 및 마무리 인사하기'],
+    // Gemini API 키가 설정된 경우 실시간 AI로 맞춤 4턴 시나리오 생성 시도 (폴백 지원)
+    if (isGeminiKey) {
+      const models = getGeminiModelsToTry(aiConfig.model);
+      for (const model of models) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
+            key
+          )}`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              generationConfig: { responseMimeType: 'application/json' },
+            }),
+          });
+          if (res.ok) {
+            recordWorkingGeminiModel(model);
+            const data = await res.json();
+            const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+            if (parsed?.turns?.length >= 2) {
+              const customId = `custom-${Date.now()}`;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const mappedTurns = parsed.turns.map((t: any, idx: number) => {
+                const jp = String(t.japanese || '').trim();
+                const rawPron = String(t.koreanPronunciation || '').trim();
+                return {
+                  id: `${customId}-t${idx}`,
+                  speaker: t.speaker === 'customer' ? 'customer' : 'staff',
+                  speakerLabel: t.speaker === 'customer' ? '손님 (A)' : '종업원 (B)',
+                  japanese: jp,
+                  furigana:
+                    t.furigana && String(t.furigana).includes(' ')
+                      ? t.furigana
+                      : japaneseToHiraganaReading(jp),
+                  koreanPronunciation:
+                    rawPron && (jp.length < 7 || rawPron.includes(' '))
+                      ? rawPron
+                      : kanaToKoreanPronunciation(jp),
+                  koreanTranslation: t.koreanTranslation || '',
+                  realLifeTip: t.realLifeTip || '핵심 키워드에 집중해보세요!',
+                  staffKeigoPoint: t.staffKeigoPoint,
+                  vocab: Array.isArray(t.vocab) ? t.vocab : [],
+                };
+              });
+
+              const created: Scenario = {
+                id: customId,
+                category,
+                title: parsed.title || cleanTopic,
+                subtitle: parsed.subtitle || cleanGoal,
+                placeName: cleanPlace,
+                difficulty: '실전',
+                estimatedMinutes: 4,
+                customerRoleName: '손님 (A)',
+                staffRoleName: '종업원 (B)',
+                situationBrief: `${cleanPlace}에서 "${cleanTopic}" 상황을 진행합니다. (${cleanGoal})`,
+                whyHardToUnderstand:
+                  parsed.whyHardToUnderstand ||
+                  '종업원이 매뉴얼화된 접객 경어로 옵션을 빠르게 확인하기 때문에 핵심 단어를 캐치하는 것이 중요합니다.',
+                keyTakeaways: parsed.keyTakeaways || [cleanGoal],
+                turns: mappedTurns,
+                freeTalkStarter: {
+                  customerStarts: {
+                    staffOpening: mappedTurns[0],
+                    missions: [cleanGoal, '점원의 확인 질문에 답하기', '계산 및 마무리 인사하기'],
+                  },
+                  staffStarts: {
+                    customerOpening:
+                      mappedTurns.find((t: { speaker: string }) => t.speaker === 'customer') ||
+                      mappedTurns[0],
+                    missions: ['손님 맞이하기', '요청 사항 확인 및 안내하기', '정중히 마무리 응대하기'],
+                  },
                 },
-                staffStarts: {
-                  customerOpening:
-                    mappedTurns.find((t: { speaker: string }) => t.speaker === 'customer') ||
-                    mappedTurns[0],
-                  missions: ['손님 맞이하기', '요청 사항 확인 및 안내하기', '정중히 마무리 응대하기'],
-                },
-              },
-            };
-            setIsGenerating(false);
-            onCreateScenario(created);
-            onClose();
-            return;
+              };
+              setIsGenerating(false);
+              onCreateScenario(created);
+              onClose();
+              return;
+            }
           }
+        } catch {
+          // 다음 모델 폴백
         }
-      } catch {
-        // AI 실패 시 로컬 템플릿 생성으로 폴백
       }
     }
 
@@ -326,7 +348,7 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="예: 카페에서 오트밀크 라떼 테이크아웃 주문하기"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[16px] sm:text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
             />
           </div>
 
@@ -339,7 +361,7 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
               value={placeName}
               onChange={(e) => setPlaceName(e.target.value)}
               placeholder="예: 블루보틀 도쿄 시부야점 / 신주쿠 바"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[16px] sm:text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
             />
           </div>
 
@@ -352,7 +374,7 @@ export const CustomScenarioModal: React.FC<CustomScenarioModalProps> = ({
               value={myGoal}
               onChange={(e) => setMyGoal(e.target.value)}
               placeholder="예: 얼음 적게 해달라고 하고 매장 컵 대신 테이크아웃 요청"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[16px] sm:text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
             />
           </div>
         </div>

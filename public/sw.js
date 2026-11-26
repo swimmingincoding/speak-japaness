@@ -1,5 +1,13 @@
-const CACHE_NAME = 'tabitalk-offline-v5';
-const CORE_ASSETS = ['./', './index.html', './manifest.json', './icon.svg'];
+const CACHE_NAME = 'tabitalk-offline-v6';
+const CORE_ASSETS = [
+  './',
+  './index.html',
+  './manifest.json',
+  './icon.svg',
+  './apple-touch-icon.png',
+  './icon-192.png',
+  './icon-512.png',
+];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

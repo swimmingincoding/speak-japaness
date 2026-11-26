@@ -560,7 +560,7 @@ export const TravelCheatSheetModal: React.FC<TravelCheatSheetModalProps> = ({
                 value={travelerName}
                 onChange={(e) => setTravelerName(e.target.value)}
                 maxLength={15}
-                className="w-36 px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-right font-bold text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500"
+                className="w-40 px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-right font-bold text-slate-800 text-[16px] sm:text-xs focus:ring-2 focus:ring-indigo-500"
                 placeholder="닉네임 입력"
               />
             </div>

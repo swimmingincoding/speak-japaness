@@ -1,6 +1,27 @@
 import { AIConfig, FreeTalkMessage, RoleType, Scenario } from '../types/conversation';
 import { registerDirectKanjiReadings } from './japanesePhonetics';
 
+let sessionWorkingGeminiModel: string | null = null;
+
+export function getGeminiModelsToTry(preferredModel?: string): string[] {
+  const candidates: string[] = [];
+  if (sessionWorkingGeminiModel) {
+    candidates.push(sessionWorkingGeminiModel);
+  }
+  const cleanPref = preferredModel?.trim();
+  if (cleanPref && cleanPref !== 'gemini-3.8-flash') {
+    candidates.push(cleanPref);
+  }
+  candidates.push('gemini-2.5-flash', 'gemini-2.0-flash');
+  return Array.from(new Set(candidates));
+}
+
+export function recordWorkingGeminiModel(model: string): void {
+  if (model) {
+    sessionWorkingGeminiModel = model;
+  }
+}
+
 export interface AITranslationResponse {
   japanese: string;
   furigana: string;
@@ -40,12 +61,7 @@ export async function translateWithAI(
 }`;
 
   if (isGeminiKey) {
-    const modelsToTry = [
-      aiConfig.model || 'gemini-3.8-flash',
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-    ];
+    const modelsToTry = getGeminiModelsToTry(aiConfig.model);
     for (const model of modelsToTry) {
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
@@ -93,6 +109,7 @@ export async function translateWithAI(
 
         clearTimeout(timeoutId);
         if (!res.ok) continue;
+        recordWorkingGeminiModel(model);
 
         const data = await res.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -260,12 +277,7 @@ async function callGeminiAPI(
   userText: string,
   aiConfig: AIConfig
 ): Promise<PartnerReplyResponse> {
-  const modelsToTry = [
-    aiConfig.model || 'gemini-3.8-flash',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-  ];
+  const modelsToTry = getGeminiModelsToTry(aiConfig.model);
 
   const conversationLog = history
     .map((m) => `${m.sender === 'user' ? 'User' : 'Partner'}: ${m.japanese}`)
@@ -318,6 +330,7 @@ async function callGeminiAPI(
         lastError = new Error(`Gemini HTTP ${response.status}`);
         continue;
       }
+      recordWorkingGeminiModel(model);
 
       const data = await response.json();
       const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -610,7 +623,7 @@ export async function batchWarmOfflinePackWithGemini(
   const key = aiConfig?.apiKey?.trim() || '';
   if (!key) throw new Error('Gemini API Key가 설정되지 않았습니다.');
 
-  const model = aiConfig.model || 'gemini-3.8-flash';
+  const modelsToTry = getGeminiModelsToTry(aiConfig.model);
   const MAX_BUDGET_USD = 5.0;
   let estimatedCostUsd = 0;
   let totalSentencesGenerated = 0;
@@ -658,22 +671,30 @@ ${theme.sentences.map((s, idx) => `${idx + 1}. ${s}`).join('\n')}
   ]
 }`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
-      key
-    )}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-        },
-      }),
-    });
+    let res: Response | null = null;
+    for (const candidateModel of modelsToTry) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:generateContent?key=${encodeURIComponent(
+        key
+      )}`;
+      const attempt = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.2,
+          },
+        }),
+      });
+      if (attempt.ok) {
+        recordWorkingGeminiModel(candidateModel);
+        res = attempt;
+        break;
+      }
+    }
 
-    if (res.ok) {
+    if (res && res.ok) {
       const data = await res.json();
       const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
       const cleaned = rawText.replace(/```json|```/g, '').trim();
@@ -737,12 +758,7 @@ export async function generateCustomTopicOpening(
     (aiConfig.provider === 'gemini' || aiConfig.apiKey.trim().startsWith('AIza'));
 
   if (isGeminiKey) {
-    const modelsToTry = [
-      aiConfig.model || 'gemini-3.8-flash',
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-    ];
+    const modelsToTry = getGeminiModelsToTry(aiConfig.model);
 
     const systemPrompt = `당신은 일본 여행 일상 회화 AI 대화 파트너입니다.
 사용자가 선택하거나 입력한 자유 회화 주제: "${topicTitle}"
@@ -980,12 +996,7 @@ export async function scanJapaneseMenuWithVision(
   const isOpenAIKey = aiConfig.provider === 'openai' || key.startsWith('sk-');
 
   if (isGeminiKey) {
-    const modelsToTry = [
-      aiConfig.model || 'gemini-3.8-flash',
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-    ];
+    const modelsToTry = getGeminiModelsToTry(aiConfig.model);
 
     for (const model of modelsToTry) {
       try {
@@ -1025,6 +1036,7 @@ export async function scanJapaneseMenuWithVision(
 
         clearTimeout(timeoutId);
         if (!res.ok) continue;
+        recordWorkingGeminiModel(model);
 
         const data = await res.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
