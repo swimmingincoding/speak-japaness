@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tabitalk-offline-v6';
+const CACHE_NAME = 'tabitalk-offline-v7';
 const CORE_ASSETS = [
   './',
   './index.html',

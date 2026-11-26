@@ -472,138 +472,114 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F8FAFC]">
-      {/* 1. 상단 모던 스티키 헤더 (아이폰 다이내믹 아일랜드 Safe Area 대응) */}
+      {/* 1. 심플 2단 스티키 헤더 (아이폰 16 프로 화면 공간 확보) */}
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 shadow-2xs pt-[env(safe-area-inset-top,0px)]">
-        {/* 네비게이션 & 제목 바 */}
-        <div className="px-4 py-2.5 flex items-center justify-between gap-3">
+        {/* 1행: 뒤로가기 · 제목 · 통화/전체듣기/보기설정 */}
+        <div className="px-3.5 py-2 flex items-center justify-between gap-2">
           <button
             onClick={() => {
               stopPlayAll();
               onBack();
             }}
-            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer shrink-0"
+            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer shrink-0"
             title="뒤로가기"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
 
           <div className="text-center flex-1 min-w-0">
-            <h2 className="text-sm sm:text-base font-black text-slate-900 truncate">
-              {scenario.title}
+            <h2 className="text-sm font-black text-slate-900 truncate">
+              {activeFreeTopic && mode === 'freetalk' ? activeFreeTopic.title : scenario.title}
             </h2>
-            <p className="text-[11px] text-slate-400 font-medium truncate">
-              {scenario.placeName} · {scenario.turns.length}턴
-            </p>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => {
                 stopPlayAll();
                 unlockSpeechForIOS();
                 setIsCallModalOpen(true);
               }}
-              className="flex items-center gap-1 text-[11px] font-extrabold text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 py-1.5 px-2.5 rounded-xl transition cursor-pointer shadow-sm shadow-emerald-500/20 active:scale-95"
-              title="실시간 전화 통화형 음성 AI 롤플레잉"
+              className="flex items-center gap-1 text-[11px] font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 py-1.5 px-2.5 rounded-full transition cursor-pointer active:scale-95"
+              title="실전 전화 통화"
             >
               <Phone className="w-3 h-3 fill-current" />
-              <span>전화 통화</span>
+              <span>통화</span>
             </button>
-            <button
-              onClick={handlePlayAllDialogue}
-              className={`flex items-center gap-1 text-[11px] font-extrabold py-1.5 px-2.5 rounded-xl transition cursor-pointer ${
-                isPlayingAll
-                  ? 'bg-rose-600 text-white shadow-sm animate-pulse'
-                  : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100'
-              }`}
-              title={isPlayingAll ? '전체 듣기 정지' : '전체 대사 연속 듣기'}
-            >
-              {isPlayingAll ? (
-                <>
+            {mode === 'guided' && (
+              <button
+                onClick={handlePlayAllDialogue}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer ${
+                  isPlayingAll
+                    ? 'bg-rose-600 text-white animate-pulse'
+                    : 'bg-slate-100 text-indigo-600 hover:bg-slate-200'
+                }`}
+                title={isPlayingAll ? '정지' : '전체 연속 듣기'}
+              >
+                {isPlayingAll ? (
                   <Square className="w-3 h-3 fill-current" />
-                  <span>정지</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-3 h-3 fill-current" />
-                  <span className="hidden sm:inline">전체듣기</span>
-                </>
-              )}
-            </button>
+                ) : (
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                )}
+              </button>
+            )}
             <button
               onClick={() => setShowSettingsDrawer((prev) => !prev)}
-              className={`w-8 h-8 rounded-xl flex items-center justify-center transition cursor-pointer ${
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer ${
                 showSettingsDrawer
                   ? 'bg-indigo-600 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
-              title="표시 및 음성 설정"
+              title="자막·속도 옵션"
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* 역할 스위처 & 모드 토글 (모던 세그먼트 바) */}
-        <div className="px-4 pb-2.5 pt-0.5 space-y-2">
-          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-100/90 text-xs font-bold">
+        {/* 2행: 모드 스위치(대본/자유대화) + 역할 원터치 스왑 */}
+        <div className="px-3.5 pb-2 flex items-center justify-between gap-2">
+          <div className="grid grid-cols-2 gap-1 bg-slate-100 p-0.5 rounded-xl flex-1">
             <button
-              onClick={() => setUserRole('customer')}
-              className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                userRole === 'customer'
-                  ? 'bg-white text-indigo-600 shadow-sm font-extrabold'
+              onClick={() => setMode('guided')}
+              className={`py-1.5 rounded-lg text-xs font-extrabold flex items-center justify-center gap-1 transition cursor-pointer ${
+                mode === 'guided'
+                  ? 'bg-white text-slate-900 shadow-2xs'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <User className="w-3.5 h-3.5" />
-              <span>손님(A) 역할</span>
-              {completedRoles.customer && (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              )}
+              <BookOpen className="w-3.5 h-3.5 text-indigo-600" /> 대본 연습
             </button>
             <button
-              onClick={() => setUserRole('staff')}
-              className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                userRole === 'staff'
-                  ? 'bg-white text-amber-600 shadow-sm font-extrabold'
+              onClick={() => setMode('freetalk')}
+              className={`py-1.5 rounded-lg text-xs font-extrabold flex items-center justify-center gap-1 transition cursor-pointer ${
+                mode === 'freetalk'
+                  ? 'bg-white text-slate-900 shadow-2xs'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Store className="w-3.5 h-3.5" />
-              <span>점원(B) 역할</span>
-              {completedRoles.staff && (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              )}
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" /> AI 자유대화
             </button>
           </div>
 
-          {/* 서브 컨트롤: 모드 탭 + 퀵 디스플레이 칩 */}
-          <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar py-0.5">
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl shrink-0">
-              <button
-                onClick={() => setMode('guided')}
-                className={`px-3 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer ${
-                  mode === 'guided'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <BookOpen className="w-3 h-3" /> 가이드 대본
-              </button>
-              <button
-                onClick={() => setMode('freetalk')}
-                className={`px-3 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer ${
-                  mode === 'freetalk'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <MessageSquare className="w-3 h-3" /> AI 프리토킹
-              </button>
-            </div>
+          <button
+            onClick={handleSwapRole}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1 border shrink-0 transition cursor-pointer ${
+              userRole === 'customer'
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}
+            title="탭하여 손님 ↔ 점원 역할 바꾸기"
+          >
+            <ArrowLeftRight className="w-3 h-3" />
+            <span>{userRole === 'customer' ? '내 역할: 손님' : '내 역할: 점원'}</span>
+          </button>
+        </div>
 
-            {/* 빠른 토글 알약 (후리가나 / 한글발음 / 한국어뜻 / 속도) */}
-            <div className="flex items-center gap-1 shrink-0">
+        {/* 보기 설정 드로어 (아이콘 탭 시에만 깔끔하게 노출) */}
+        {showSettingsDrawer && (
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-700 space-y-2.5 animate-fadeIn">
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
                 onClick={() =>
                   onUpdateDisplay({
@@ -611,14 +587,13 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                     showFurigana: !displaySettings.showFurigana,
                   })
                 }
-                className={`px-2 py-1 rounded-lg text-[10.5px] font-extrabold transition cursor-pointer ${
+                className={`px-3 py-1.5 rounded-full text-xs font-bold cursor-pointer ${
                   displaySettings.showFurigana
-                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                    : 'bg-white text-slate-400 border border-slate-200'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white border border-slate-200 text-slate-500'
                 }`}
-                title="한자 위 후리가나(요미가나) 표시 토글"
               >
-                후리가나
+                후리가나 {displaySettings.showFurigana ? 'ON' : 'OFF'}
               </button>
               <button
                 onClick={() =>
@@ -627,14 +602,13 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                     showKoreanPronunciation: !displaySettings.showKoreanPronunciation,
                   })
                 }
-                className={`px-2 py-1 rounded-lg text-[10.5px] font-extrabold transition cursor-pointer ${
+                className={`px-3 py-1.5 rounded-full text-xs font-bold cursor-pointer ${
                   displaySettings.showKoreanPronunciation
-                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                    : 'bg-white text-slate-400 border border-slate-200'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white border border-slate-200 text-slate-500'
                 }`}
-                title="한글 발음 표시 토글"
               >
-                발음
+                한글발음 {displaySettings.showKoreanPronunciation ? 'ON' : 'OFF'}
               </button>
               <button
                 onClick={() =>
@@ -643,14 +617,13 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                     showTranslation: !displaySettings.showTranslation,
                   })
                 }
-                className={`px-2 py-1 rounded-lg text-[10.5px] font-extrabold transition cursor-pointer ${
+                className={`px-3 py-1.5 rounded-full text-xs font-bold cursor-pointer ${
                   displaySettings.showTranslation
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-white text-slate-400 border border-slate-200'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white border border-slate-200 text-slate-500'
                 }`}
-                title="한국어 번역 해석 표시 토글"
               >
-                번역
+                한국어뜻 {displaySettings.showTranslation ? 'ON' : 'OFF'}
               </button>
               <button
                 onClick={() =>
@@ -659,19 +632,12 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                     ttsSpeed: displaySettings.ttsSpeed < 0.9 ? 1.0 : 0.78,
                   })
                 }
-                className="px-2 py-1 rounded-lg text-[10.5px] font-extrabold bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer"
-                title="음성 읽기 속도"
+                className="px-3 py-1.5 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-700 cursor-pointer"
               >
-                {displaySettings.ttsSpeed < 0.9 ? '🐢 0.8x' : '⚡ 1.0x'}
+                속도 {displaySettings.ttsSpeed < 0.9 ? '🐢 0.8x' : '⚡ 1.0x'}
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* 상세 옵션 드로어 (설정 버튼 클릭 시 펼쳐짐) */}
-        {showSettingsDrawer && (
-          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-700 flex flex-wrap items-center justify-between gap-3 animate-fadeIn">
-            <label className="flex items-center gap-2 cursor-pointer font-medium">
+            <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-600">
               <input
                 type="checkbox"
                 checked={displaySettings.autoPlayPartnerAudio}
@@ -681,33 +647,21 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                     autoPlayPartnerAudio: e.target.checked,
                   })
                 }
-                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                className="w-4 h-4 rounded accent-indigo-600 cursor-pointer"
               />
-              <span>상대방 대사 시 음성 자동 재생</span>
+              <span>상대방 차례에 음성 자동 재생</span>
             </label>
-
-            <span className="text-[11px] text-slate-400">
-              카드를 탭하여 상세 뉘앙스와 단어를 볼 수 있습니다.
-            </span>
           </div>
         )}
       </div>
 
       {/* 2. 메인 대화 영역 */}
-      <div className="flex-1 px-4 py-4 space-y-4 max-w-3xl mx-auto w-full pb-64">
-        {/* 미니 상황 안내 배너 */}
-        <div className="rounded-2xl bg-white border border-slate-200/80 p-3.5 text-xs text-slate-600 shadow-2xs space-y-1">
-          <div className="flex items-center gap-1.5 font-bold text-slate-900">
-            <span>📍 상황 요약:</span>
-            <span className="font-medium text-slate-700">{scenario.situationBrief}</span>
+      <div className="flex-1 px-4 py-3 space-y-3.5 max-w-3xl mx-auto w-full pb-60">
+        {mode === 'guided' && (
+          <div className="px-3 py-2 rounded-2xl bg-white border border-slate-200/70 text-[11.5px] text-slate-500 font-medium">
+            📍 {scenario.situationBrief}
           </div>
-          {userRole === 'staff' && (
-            <div className="text-amber-800 font-bold bg-amber-50/80 px-2.5 py-1.5 rounded-xl border border-amber-200/50 flex items-center gap-1.5 mt-1">
-              <span>🧑‍🍳</span>
-              <span>지금은 점원(B) 차례입니다! 고객을 대하는 정중한 일본어 접객 표현을 익혀보세요.</span>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* ======================================================== */}
         {/* 모드 1: 가이드 대본 모드 */}
@@ -854,8 +808,8 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                         </div>
                       </div>
 
-                      {/* 확장 영역: 실전 팁 & 접객어 포인트 & 단어 사전 */}
-                      {(isExpanded || isCurrentActive) && (
+                      {/* 확장 영역: 사용자가 '해설 & 단어' 버튼을 눌렀을 때만 펼쳐져 채팅창이 한눈에 보이도록 개선 */}
+                      {isExpanded && (
                         <div className="mt-3 space-y-2.5 bg-slate-50/90 rounded-2xl p-3.5 border border-slate-200 text-xs animate-fadeIn">
                           <div className="text-slate-700 leading-relaxed">
                             <span className="font-extrabold text-indigo-600">💡 실전 팁: </span>
@@ -957,49 +911,32 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
         {/* 모드 2: 실전 AI 프리토킹 모드 */}
         {/* ======================================================== */}
         {mode === 'freetalk' && (
-          <div className="space-y-4">
-            {/* 인터랙티브 대화 주제 배너 & 상황 선택기 */}
-            <div className="rounded-[26px] bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 p-4.5 text-white shadow-md shadow-emerald-900/10 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-[11px] font-black text-emerald-100">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    <span>{activeFreeTopic ? activeFreeTopic.category : '시나리오 연계 대화'}</span>
-                  </span>
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-extrabold ${
-                    isGeminiActive
-                      ? 'bg-emerald-400/20 text-emerald-200 border border-emerald-400/30'
-                      : 'bg-black/20 text-slate-300'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isGeminiActive ? 'bg-emerald-300 animate-pulse' : 'bg-slate-400'}`} />
-                    <span>{isGeminiActive ? 'Gemini 3.8 Flash 활성화' : '오프라인 시뮬레이션'}</span>
+          <div className="space-y-3.5">
+            {/* 컴팩트 자유 대화 주제 바 (기존 거대 배너를 한 줄 알약 바로 압축!) */}
+            <div className="rounded-2xl bg-white border border-slate-200/90 px-3.5 py-2.5 flex items-center justify-between gap-2 shadow-2xs">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="text-xs font-extrabold text-slate-900 truncate">
+                    {activeFreeTopic ? activeFreeTopic.title : scenario.title}
                   </span>
                 </div>
-                <button
-                  onClick={() => setIsTopicModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-white text-emerald-800 text-xs font-black shadow-xs hover:bg-emerald-50 active:scale-95 transition cursor-pointer flex items-center gap-1 shrink-0"
-                >
-                  <span>주제 선택 & 직접 입력 ▾</span>
-                </button>
-              </div>
-
-              <div>
-                <h3 className="text-base sm:text-lg font-black leading-snug tracking-tight">
-                  {activeFreeTopic ? activeFreeTopic.title : scenario.title}
-                </h3>
-                <p className="text-xs text-emerald-100/90 mt-1 leading-relaxed">
-                  {activeFreeTopic ? activeFreeTopic.situationBrief : scenario.situationBrief}
+                <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                  상대:{' '}
+                  {activeFreeTopic
+                    ? activeFreeTopic.partnerRoleName
+                    : userRole === 'customer'
+                    ? scenario.staffRoleName
+                    : scenario.customerRoleName}{' '}
+                  · {isGeminiActive ? 'Gemini AI 연결됨' : '오프라인 연습'}
                 </p>
               </div>
-
-              <div className="pt-2 border-t border-white/15 flex items-center justify-between text-[11px] text-emerald-100/90 font-semibold">
-                <span>
-                  대화 상대: <strong className="text-white">{activeFreeTopic ? activeFreeTopic.partnerRoleName : (userRole === 'customer' ? scenario.staffRoleName : scenario.customerRoleName)}</strong>
-                </span>
-                <span>
-                  내 역할: <strong className="text-amber-300">{userRole === 'customer' ? '손님(A)' : '점원(B)'}</strong>
-                </span>
-              </div>
+              <button
+                onClick={() => setIsTopicModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-extrabold shrink-0 transition cursor-pointer"
+              >
+                주제 변경
+              </button>
             </div>
 
             {isChangingTopic && (

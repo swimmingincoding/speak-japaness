@@ -89,86 +89,28 @@ export const SavedExpressions: React.FC<SavedExpressionsProps> = ({
   }
 
   return (
-    <div className="space-y-4 pb-28">
+    <div className="space-y-3.5 pb-28">
       <div className="px-1 flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-extrabold text-slate-900">나만의 실전 표현 단어장</h2>
-          <p className="text-xs text-slate-500 font-medium">
-            일본 현지에서 바로 꺼내 쓸 문장과 점원의 단골 질문 모음 ({savedList.length}개)
+          <h2 className="text-base font-black text-slate-900">
+            내 표현 보관함 ({savedList.length})
+          </h2>
+          <p className="text-[11px] text-slate-500 font-medium">
+            저장한 문장을 검색하거나 점원에게 바로 크게 보여주세요
           </p>
         </div>
 
         {onOpenCheatSheet && (
           <button
             onClick={onOpenCheatSheet}
-            className="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs transition flex items-center gap-1.5 border border-indigo-200 cursor-pointer shadow-2xs shrink-0"
-            title="고화질 1장 이미지로 내보내기"
+            className="px-3 py-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+            title="아이폰 잠금화면 치트시트 만들기"
           >
-            <Ticket className="w-3.5 h-3.5" />
-            <span>치트시트 내보내기</span>
+            <Ticket className="w-3.5 h-3.5 text-amber-300" />
+            <span>잠금화면 저장</span>
           </button>
         )}
       </div>
-
-      {/* 망각곡선 일일 복습 배너 */}
-      {onOpenDailyReview && (
-        <div
-          onClick={onOpenDailyReview}
-          className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white shadow-md flex items-center justify-between cursor-pointer group hover:opacity-95 transition"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white font-black text-base group-hover:scale-105 transition shadow-2xs">
-              🔥
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-black text-xs text-white">
-                  망각곡선 일일 복습 (오늘 5개)
-                </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-white text-orange-600">
-                  스트릭 유지
-                </span>
-              </div>
-              <p className="text-[11px] text-amber-100 font-medium">
-                플래시카드로 복습하고 연속 학습 스트릭을 이어가세요!
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-bold text-white group-hover:translate-x-0.5 transition shrink-0">
-            복습 시작 →
-          </span>
-        </div>
-      )}
-
-      {/* 치트시트 추천 배너 */}
-      {onOpenCheatSheet && (
-        <div
-          onClick={onOpenCheatSheet}
-          className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-md flex items-center justify-between cursor-pointer group hover:border-indigo-400 border border-slate-800 transition"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center text-amber-300 font-black text-base group-hover:scale-105 transition">
-              📄
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-black text-xs text-white">
-                  저장한 문장으로 "여행 치트시트(PNG)" 만들기
-                </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-400 text-slate-950">
-                  잠금화면용
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-300 font-medium">
-                보딩패스 / 도쿄 영수증 스타일 · 비행기 모드에서도 1초 만에 확인
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-bold text-indigo-300 group-hover:translate-x-0.5 transition shrink-0">
-            만들기 →
-          </span>
-        </div>
-      )}
 
       {/* 빠른 검색 & 출처/역할 필터 바 */}
       <div className="space-y-2.5">

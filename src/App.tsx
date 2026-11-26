@@ -13,28 +13,24 @@ import { ChunkErrorBoundary } from './components/ChunkErrorBoundary';
 import { stopSpeaking } from './utils/speech';
 import { loadUserStreak, recordStudyCompletion } from './utils/srsEngine';
 import {
-  Headphones,
   Bookmark,
   SlidersHorizontal,
   MessageSquareText,
   Languages,
   GraduationCap,
   Loader2,
-  Flame,
+  Camera,
+  Calculator,
 } from 'lucide-react';
 
-// 성능 최적화: 코드 스플리팅으로 초기 번들 다운로드 용량을 줄이고 탭 전환 시 온디맨드 로딩
 const RolePlayRoom = lazy(() =>
   import('./components/RolePlayRoom').then((m) => ({ default: m.RolePlayRoom }))
 );
-const KeigoGuide = lazy(() =>
-  import('./components/KeigoGuide').then((m) => ({ default: m.KeigoGuide }))
+const StudyHub = lazy(() =>
+  import('./components/StudyHub').then((m) => ({ default: m.StudyHub }))
 );
 const SavedExpressions = lazy(() =>
   import('./components/SavedExpressions').then((m) => ({ default: m.SavedExpressions }))
-);
-const N3StudyRoom = lazy(() =>
-  import('./components/N3StudyRoom').then((m) => ({ default: m.N3StudyRoom }))
 );
 const SettingsModal = lazy(() =>
   import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
@@ -58,7 +54,7 @@ const DailyReviewModal = lazy(() =>
 const TabLoadingFallback = () => (
   <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-400 animate-fadeIn">
     <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
-    <span className="text-xs font-bold">콘텐츠 준비 중...</span>
+    <span className="text-xs font-bold">불러오는 중...</span>
   </div>
 );
 
@@ -69,12 +65,30 @@ const STORAGE_KEYS = {
   COMPLETED: 'tabitalk_completed_roles_v1',
   N3_MASTERED: 'tabitalk_n3_mastered_v1',
   CUSTOM_SCENARIOS: 'tabitalk_custom_scenarios_v1',
+  LAST_TAB: 'tabitalk_last_tab_v2',
 };
 
-type MainTab = 'scenarios' | 'translator' | 'n3' | 'keigo' | 'saved';
+type MainTab = 'translator' | 'scenarios' | 'study' | 'saved';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<MainTab>('scenarios');
+  const [activeTab, setActiveTab] = useState<MainTab>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.LAST_TAB);
+      if (
+        saved === 'translator' ||
+        saved === 'scenarios' ||
+        saved === 'study' ||
+        saved === 'saved'
+      ) {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'translator';
+  });
+
+  const [studyInitialSubTab, setStudyInitialSubTab] = useState<'n3' | 'keigo'>('n3');
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [selectedInitialRole, setSelectedInitialRole] = useState<RoleType>('customer');
   const [selectedInitialMode, setSelectedInitialMode] = useState<'guided' | 'freetalk'>('guided');
@@ -182,6 +196,10 @@ export const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEYS.CUSTOM_SCENARIOS, JSON.stringify(customScenarios));
   }, [customScenarios]);
 
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.LAST_TAB, activeTab);
+  }, [activeTab]);
+
   const allScenarios = [...customScenarios, ...SCENARIOS];
   const savedIds = new Set(savedExpressions.map((s) => s.id));
   const n3MasteredSet = new Set(n3MasteredList);
@@ -221,7 +239,6 @@ export const App: React.FC = () => {
         },
       };
     });
-    // 롤플레잉 완주 시 오늘의 연속 학습 스트릭 자동 달성 반영
     setStreakData(recordStudyCompletion(true));
   };
 
@@ -258,67 +275,45 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#EEF2F6] text-slate-900 flex justify-center">
-      {/* 모바일 앱 컨테이너 (아이폰 16 프로 6.3인치 및 모던 스마트폰 최적화) */}
-      <div className="w-full max-w-[480px] min-h-screen bg-[#F7F9FC] shadow-2xl shadow-slate-300/60 flex flex-col relative">
-        {/* 상단 모던 앱 바 (다이내믹 아일랜드 Safe Area 대응) */}
+      {/* 아이폰 16 프로 (402px) 및 모바일 최적화 앱 프레임 */}
+      <div className="w-full max-w-[480px] min-h-screen bg-[#F5F7FA] shadow-2xl shadow-slate-300/50 flex flex-col relative">
+        {/* 간결하고 차분한 상단 앱 바 */}
         {!selectedScenario && (
-          <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 px-4 sm:px-5 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-3 flex items-center justify-between">
-            <div
-              onClick={() => handleSwitchTab('scenarios')}
-              className="flex items-center gap-3 cursor-pointer"
+          <header className="sticky top-0 z-30 bg-[#F5F7FA]/90 backdrop-blur-xl px-4 pt-[calc(env(safe-area-inset-top,0px)+0.65rem)] pb-2.5 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => handleSwitchTab('translator')}
+              className="flex items-center gap-2.5 cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-indigo-500/25 text-white font-black text-lg">
+              <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-xs">
                 旅
               </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-[17px] tracking-tight text-slate-900">
-                    TabiTalk
-                  </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
-                    타비토크
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 font-medium">
-                  손님 ↔ 점원 양방향 일본어 회화
-                </p>
-              </div>
-            </div>
+              <span className="font-black text-[18px] tracking-tight text-slate-900">
+                TabiTalk
+              </span>
+            </button>
 
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <button
-                onClick={() => setIsDailyReviewOpen(true)}
-                className="px-2 sm:px-2.5 py-2 rounded-2xl bg-orange-50 hover:bg-orange-100 border border-orange-200/80 flex items-center gap-1 text-slate-800 transition cursor-pointer shadow-2xs group"
-                title="망각곡선 일일 복습 & 연속 학습 스트릭"
-              >
-                <Flame className="w-4 h-4 text-orange-500 fill-orange-500 group-hover:scale-110 transition" />
-                <span className="text-xs font-black text-orange-950">
-                  {streakData.currentStreak}일
-                </span>
-              </button>
-
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setIsCameraScannerOpen(true)}
-                className="px-2 sm:px-2.5 py-2 rounded-2xl bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-200/80 flex items-center gap-1 text-slate-800 transition cursor-pointer shadow-2xs"
-                title="카메라 메뉴판 · 간판 Gemini Vision AI 스캐너"
+                className="w-9 h-9 rounded-full bg-white hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-700 transition cursor-pointer shadow-2xs"
+                title="메뉴판 · 간판 사진 스캔"
               >
-                <span className="text-sm">📷</span>
-                <span className="text-xs font-black text-indigo-900 hidden sm:inline">스캔</span>
+                <Camera className="w-4 h-4" />
               </button>
 
               <button
                 onClick={() => setIsYenCalculatorOpen(true)}
-                className="px-2 sm:px-2.5 py-2 rounded-2xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 flex items-center gap-1 text-slate-800 transition cursor-pointer shadow-2xs"
-                title="현지 엔화 환율 · 소비세(10%) · 와리깡 계산기"
+                className="w-9 h-9 rounded-full bg-white hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-700 transition cursor-pointer shadow-2xs"
+                title="엔화 환율 · 소비세 · 더치페이 계산기"
               >
-                <span className="text-sm">💴</span>
-                <span className="text-xs font-black text-amber-900 hidden sm:inline">계산기</span>
+                <Calculator className="w-4 h-4" />
               </button>
 
               <button
                 onClick={() => setIsSettingsOpen(true)}
-                className="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200/70 flex items-center justify-center text-slate-700 transition cursor-pointer"
-                title="학습 및 AI 설정"
+                className="w-9 h-9 rounded-full bg-white hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-700 transition cursor-pointer shadow-2xs"
+                title="설정 및 백업"
               >
                 <SlidersHorizontal className="w-4 h-4" />
               </button>
@@ -327,103 +322,106 @@ export const App: React.FC = () => {
         )}
 
         {/* 메인 콘텐츠 영역 */}
-        <main className={selectedScenario ? 'flex-1' : 'flex-1 px-4 pt-4'}>
+        <main className={selectedScenario ? 'flex-1' : 'flex-1 px-4 pt-1.5'}>
           <ChunkErrorBoundary>
             <Suspense fallback={<TabLoadingFallback />}>
-            {selectedScenario ? (
-              <RolePlayRoom
-                scenario={selectedScenario}
-                initialRole={selectedInitialRole}
-                initialMode={selectedInitialMode}
-                displaySettings={displaySettings}
-                onUpdateDisplay={setDisplaySettings}
-                aiConfig={aiConfig}
-                savedIds={savedIds}
-                onToggleSave={handleToggleSave}
-                completedRoles={
-                  completedMap[selectedScenario.id] || { customer: false, staff: false }
-                }
-                onMarkCompleted={handleMarkCompleted}
-                onBack={() => {
-                  stopSpeaking();
-                  setSelectedScenario(null);
-                }}
-              />
-            ) : (
-              <>
-                {activeTab === 'scenarios' && (
-                  <ScenarioList
-                    scenarios={allScenarios}
-                    completedMap={completedMap}
-                    onSelectScenario={(scenario, role) => {
-                      stopSpeaking();
-                      setSelectedInitialMode('guided');
-                      setSelectedInitialRole(role);
-                      setSelectedScenario(scenario);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    onGoKeigoTab={() => handleSwitchTab('keigo')}
-                    onOpenCustomModal={() => setIsCustomModalOpen(true)}
-                    onDeleteCustomScenario={handleDeleteCustomScenario}
-                    onStartFreeTalk={() => {
-                      stopSpeaking();
-                      setSelectedInitialRole('customer');
-                      setSelectedInitialMode('freetalk');
-                      setSelectedScenario(allScenarios[0]);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                  />
-                )}
-                {activeTab === 'translator' && (
-                  <OfflineTranslator
-                    ttsSpeed={displaySettings.ttsSpeed}
-                    showFurigana={displaySettings.showFurigana}
-                    aiConfig={aiConfig}
-                    onOpenSettings={() => setIsSettingsOpen(true)}
-                    onSaveExpression={handleToggleSave}
-                    onOpenYenCalculator={() => setIsYenCalculatorOpen(true)}
-                    onOpenCameraScanner={() => setIsCameraScannerOpen(true)}
-                  />
-                )}
-                {activeTab === 'n3' && (
-                  <N3StudyRoom
-                    ttsSpeed={displaySettings.ttsSpeed}
-                    masteredIds={n3MasteredSet}
-                    onToggleMastered={handleToggleN3Mastered}
-                    onStudyActivity={() => setStreakData(recordStudyCompletion(false))}
-                  />
-                )}
-                {activeTab === 'keigo' && (
-                  <KeigoGuide ttsSpeed={displaySettings.ttsSpeed} />
-                )}
-                {activeTab === 'saved' && (
-                  <SavedExpressions
-                    savedList={savedExpressions}
-                    onRemove={handleRemoveSaved}
-                    ttsSpeed={displaySettings.ttsSpeed}
-                    onOpenCheatSheet={() => setIsCheatSheetOpen(true)}
-                    onOpenDailyReview={() => setIsDailyReviewOpen(true)}
-                  />
-                )}
-              </>
-            )}
+              {selectedScenario ? (
+                <RolePlayRoom
+                  scenario={selectedScenario}
+                  initialRole={selectedInitialRole}
+                  initialMode={selectedInitialMode}
+                  displaySettings={displaySettings}
+                  onUpdateDisplay={setDisplaySettings}
+                  aiConfig={aiConfig}
+                  savedIds={savedIds}
+                  onToggleSave={handleToggleSave}
+                  completedRoles={
+                    completedMap[selectedScenario.id] || { customer: false, staff: false }
+                  }
+                  onMarkCompleted={handleMarkCompleted}
+                  onBack={() => {
+                    stopSpeaking();
+                    setSelectedScenario(null);
+                  }}
+                />
+              ) : (
+                <>
+                  {activeTab === 'translator' && (
+                    <OfflineTranslator
+                      ttsSpeed={displaySettings.ttsSpeed}
+                      showFurigana={displaySettings.showFurigana}
+                      aiConfig={aiConfig}
+                      onOpenSettings={() => setIsSettingsOpen(true)}
+                      onSaveExpression={handleToggleSave}
+                      onOpenYenCalculator={() => setIsYenCalculatorOpen(true)}
+                      onOpenCameraScanner={() => setIsCameraScannerOpen(true)}
+                    />
+                  )}
+                  {activeTab === 'scenarios' && (
+                    <ScenarioList
+                      scenarios={allScenarios}
+                      completedMap={completedMap}
+                      onSelectScenario={(scenario, role) => {
+                        stopSpeaking();
+                        setSelectedInitialMode('guided');
+                        setSelectedInitialRole(role);
+                        setSelectedScenario(scenario);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      onGoKeigoTab={() => {
+                        setStudyInitialSubTab('keigo');
+                        handleSwitchTab('study');
+                      }}
+                      onOpenCustomModal={() => setIsCustomModalOpen(true)}
+                      onDeleteCustomScenario={handleDeleteCustomScenario}
+                      onStartFreeTalk={() => {
+                        stopSpeaking();
+                        setSelectedInitialRole('customer');
+                        setSelectedInitialMode('freetalk');
+                        setSelectedScenario(allScenarios[0]);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    />
+                  )}
+                  {activeTab === 'study' && (
+                    <StudyHub
+                      key={studyInitialSubTab}
+                      ttsSpeed={displaySettings.ttsSpeed}
+                      streakData={streakData}
+                      masteredIds={n3MasteredSet}
+                      onToggleMastered={handleToggleN3Mastered}
+                      onStudyActivity={() => setStreakData(recordStudyCompletion(false))}
+                      onOpenDailyReview={() => setIsDailyReviewOpen(true)}
+                      initialSubTab={studyInitialSubTab}
+                    />
+                  )}
+                  {activeTab === 'saved' && (
+                    <SavedExpressions
+                      savedList={savedExpressions}
+                      onRemove={handleRemoveSaved}
+                      ttsSpeed={displaySettings.ttsSpeed}
+                      onOpenCheatSheet={() => setIsCheatSheetOpen(true)}
+                    />
+                  )}
+                </>
+              )}
             </Suspense>
           </ChunkErrorBoundary>
         </main>
 
-        {/* 하단 모던 탭 네비게이션 (아이폰 16 프로 홈 인디케이터 Safe-Area 완벽 대응) */}
+        {/* 직관적인 4탭 하단 바 (아이폰 16 프로 Safe-Area 대응) */}
         {!selectedScenario && (
-          <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/80 px-2 pt-2 pb-[calc(env(safe-area-inset-bottom,16px)+0.5rem)] grid grid-cols-5 gap-1 shadow-[0_-4px_20px_rgba(15,23,42,0.05)]">
+          <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/70 px-3 pt-1.5 pb-[calc(env(safe-area-inset-bottom,16px)+0.4rem)] grid grid-cols-4 gap-1 shadow-[0_-4px_20px_rgba(15,23,42,0.04)]">
             {(
               [
+                { id: 'translator', label: '번역', icon: Languages },
                 { id: 'scenarios', label: '실전회화', icon: MessageSquareText },
-                { id: 'translator', label: '번역·SOS', icon: Languages },
-                { id: 'n3', label: 'N3 단어', icon: GraduationCap },
-                { id: 'keigo', label: '접객어', icon: Headphones },
+                { id: 'study', label: '학습', icon: GraduationCap },
                 {
                   id: 'saved',
-                  label: savedExpressions.length > 0 ? `단어장(${savedExpressions.length})` : '단어장',
+                  label: '보관함',
                   icon: Bookmark,
+                  badge: savedExpressions.length > 0 ? savedExpressions.length : undefined,
                 },
               ] as const
             ).map((item) => {
@@ -433,13 +431,20 @@ export const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => handleSwitchTab(item.id)}
-                  className={`flex flex-col items-center justify-center py-1.5 rounded-2xl transition cursor-pointer ${
+                  className={`relative flex flex-col items-center justify-center py-1.5 rounded-2xl transition cursor-pointer ${
                     isActive
-                      ? 'text-indigo-600 font-extrabold bg-indigo-50/80'
-                      : 'text-slate-400 font-medium hover:text-slate-600'
+                      ? 'text-indigo-600 font-extrabold'
+                      : 'text-slate-400 font-semibold hover:text-slate-600'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'stroke-[2.5px]' : ''}`} />
+                  <div className="relative">
+                    <Icon className={`w-[22px] h-[22px] mb-0.5 ${isActive ? 'stroke-[2.5px]' : ''}`} />
+                    {'badge' in item && item.badge && (
+                      <span className="absolute -top-1 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-indigo-600 text-white text-[9.5px] font-black flex items-center justify-center">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[11px] tracking-tight">{item.label}</span>
                 </button>
               );
@@ -447,7 +452,6 @@ export const App: React.FC = () => {
           </nav>
         )}
 
-        {/* 설정 모달 */}
         <Suspense fallback={null}>
           <SettingsModal
             isOpen={isSettingsOpen}
@@ -460,7 +464,6 @@ export const App: React.FC = () => {
           />
         </Suspense>
 
-        {/* 나만의 여행 상황 만들기 모달 */}
         <Suspense fallback={null}>
           <CustomScenarioModal
             isOpen={isCustomModalOpen}
@@ -470,7 +473,6 @@ export const App: React.FC = () => {
           />
         </Suspense>
 
-        {/* 현지 엔화 환율 · 소비세(10%) · 와리깡(더치페이) 계산기 모달 */}
         <Suspense fallback={null}>
           <YenCalculatorModal
             isOpen={isYenCalculatorOpen}
@@ -478,7 +480,6 @@ export const App: React.FC = () => {
           />
         </Suspense>
 
-        {/* 나만의 여행 치트시트 1장 고화질 이미지(PNG) 내보내기 모달 */}
         <Suspense fallback={null}>
           <TravelCheatSheetModal
             isOpen={isCheatSheetOpen}
@@ -487,7 +488,6 @@ export const App: React.FC = () => {
           />
         </Suspense>
 
-        {/* 카메라 메뉴판 · 간판 Gemini Vision AI 스캐너 모달 */}
         <Suspense fallback={null}>
           <CameraMenuScannerModal
             isOpen={isCameraScannerOpen}
@@ -501,7 +501,6 @@ export const App: React.FC = () => {
           />
         </Suspense>
 
-        {/* 에빙하우스 망각곡선 일일 복습 & 스트릭 모달 */}
         <Suspense fallback={null}>
           <DailyReviewModal
             isOpen={isDailyReviewOpen}

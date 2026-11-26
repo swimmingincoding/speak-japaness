@@ -11,7 +11,6 @@ import {
   getOfflinePackStats,
   getNeuralCacheEntries,
   registerDynamicVocabPairs,
-  registerDynamicCorpusItems,
   PREBUILT_CORPUS,
   TranslationOutput,
 } from '../utils/offlineEngine';
@@ -42,7 +41,6 @@ import { RhythmicPronunciation } from './RhythmicPronunciation';
 import { TripPackModal } from './TripPackModal';
 import { hydrateInstalledTripPacks } from '../utils/tripLanguagePackStore';
 import {
-  Wifi,
   WifiOff,
   ArrowRightLeft,
   Volume2,
@@ -51,8 +49,6 @@ import {
   Mic,
   MicOff,
   Sparkles,
-  CheckCircle2,
-  Database,
   CornerDownLeft,
   BookmarkPlus,
   Check,
@@ -61,9 +57,10 @@ import {
   Download,
   Trash2,
   Moon,
-  ChevronDown,
-  ChevronUp,
   Briefcase,
+  Camera,
+  Calculator,
+  ChevronRight,
 } from 'lucide-react';
 import { AIConfig, SavedExpression } from '../types/conversation';
 
@@ -97,14 +94,22 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [isListening, setIsListening] = useState<boolean>(false);
   const [packStats, setPackStats] = useState(() => getOfflinePackStats());
-  const [corpusCategory, setCorpusCategory] = useState<string>('일상');
+
+  const [bottomSection, setBottomSection] = useState<'phrasebook' | 'sos'>('phrasebook');
+  const [corpusCategory, setCorpusCategory] = useState<string>('식당');
+  const [selectedEmergencyCat, setSelectedEmergencyCat] = useState<
+    EmergencyCategory | 'all'
+  >('all');
+  const [expandedSosId, setExpandedSosId] = useState<string | null>(null);
+
   const [justSaved, setJustSaved] = useState<boolean>(false);
   const [copiedOutput, setCopiedOutput] = useState<boolean>(false);
   const [nmtStatus, setNmtStatus] = useState<OnDeviceNmtStatus>(() =>
     getOnDeviceNmtStatus()
   );
-  const [showNmtPanel, setShowNmtPanel] = useState<boolean>(false);
+  const [isEngineSheetOpen, setIsEngineSheetOpen] = useState<boolean>(false);
   const [isTripPackModalOpen, setIsTripPackModalOpen] = useState<boolean>(false);
+
   const [recentHistory, setRecentHistory] = useState<
     Array<{
       source: string;
@@ -112,6 +117,16 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
       output: TranslationOutput;
     }>
   >([]);
+
+  const [bigScreenPhrase, setBigScreenPhrase] = useState<{
+    japanese: string;
+    furigana: string;
+    koreanPronunciation: string;
+    korean: string;
+  } | null>(null);
+
+  const activeReqIdRef = useRef<number>(0);
+  const voiceRecRef = useRef<{ stop: () => void } | null>(null);
 
   const pushRecentHistory = (
     source: string,
@@ -125,19 +140,6 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
       return [{ source: cleanSrc, direction: dir, output }, ...deduped].slice(0, 5);
     });
   };
-
-  const [selectedEmergencyCat, setSelectedEmergencyCat] = useState<
-    EmergencyCategory | 'all'
-  >('all');
-  const [bigScreenPhrase, setBigScreenPhrase] = useState<{
-    japanese: string;
-    furigana: string;
-    koreanPronunciation: string;
-    korean: string;
-  } | null>(null);
-
-  const activeReqIdRef = useRef<number>(0);
-  const voiceRecRef = useRef<{ stop: () => void } | null>(null);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -160,11 +162,8 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
 
   const effectiveOffline = !isOnline || forceOfflineMode;
   const hasAiKey = Boolean(aiConfig?.apiKey?.trim());
-  const isGeminiConfigured =
-    hasAiKey &&
-    (aiConfig?.provider === 'gemini' || aiConfig?.apiKey?.trim().startsWith('AIza'));
 
-  // 실시간 타이핑 디바운스 자동 번역 (2자 이상 입력 후 350ms 멈추면 체감 지연 0초로 즉시 번역)
+  // 실시간 타이핑 디바운스 자동 번역
   useEffect(() => {
     const trimmed = inputText.trim();
     if (!trimmed) {
@@ -188,12 +187,10 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
 
     const currentReqId = ++activeReqIdRef.current;
 
-    // 1. 사전 캐싱된 오프라인 언어팩 & 다중 절 구문 합성 엔진으로 0.01초 즉시 응답 (Optimistic UI)
     const offlineOut = executeOfflineTranslation(text, direction);
     setTranslationResult(offlineOut);
     pushRecentHistory(text, direction, offlineOut);
 
-    // 2. 이미 캐시된 고품질 신경망 번역이거나 98% 이상 완전 일치 오프라인/맞춤 팩인 경우 즉시 완료 (네트워크 0초)
     if (
       offlineOut.engineType === 'offline-neural-cache' ||
       offlineOut.engineType === 'trip-custom-pack' ||
@@ -220,7 +217,6 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
             koreanMeaning: direction === 'ko-to-jp' ? text : nmtTranslated.trim(),
             engineType: 'on-device-nmt',
             confidence: 98,
-            tip: '아이폰 온디바이스 신경망(WASM q8)이 데이터 0바이트로 직접 추론한 결과입니다.',
           };
           setTranslationResult(nmtOut);
           pushRecentHistory(text, direction, nmtOut);
@@ -229,7 +225,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           return true;
         }
       } catch {
-        // 형태소/구문 1차 번역 결과 유지
+        // 형태소 결과 유지
       } finally {
         if (currentReqId === activeReqIdRef.current) {
           setIsTranslating(false);
@@ -238,13 +234,11 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
       return false;
     };
 
-    // 2-B. 오프라인(비행기 모드) 상태에서 온디바이스 신경망 엔진이 활성화된 경우: 0.01초 형태소 표시 후 백그라운드 NMT 정밀 교정!
     if (effectiveOffline) {
       await tryOnDeviceNmtUpgrade();
       return;
     }
 
-    // 3. 온라인 모드 + Gemini/OpenAI API Key가 설정된 경우: 초고속 LLM 문맥 번역 (thinkingBudget=0)
     if (!effectiveOffline && hasAiKey && aiConfig) {
       setIsTranslating(true);
       try {
@@ -289,11 +283,10 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           return;
         }
       } catch {
-        // AI 호출 실패 시 아래 일반 신경망 번역 엔드포인트로 자동 폴백
+        // 폴백 진행
       }
     }
 
-    // 4. 온라인 모드(API 키 미설정 또는 폴백): 코퍼스 완전 일치가 아니면 실시간 신경망 번역 보조
     if (!effectiveOffline && offlineOut.confidence < 99) {
       setIsTranslating(true);
       try {
@@ -304,7 +297,6 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
         let translatedText = '';
         let romajiSegments = '';
 
-        // 1차 신경망 번역: Google Chrome Extension Dict API (429 차단 없이 0.2초 내 응답)
         try {
           const res = await fetch(
             `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=${sl}&tl=${tl}&q=${q}`
@@ -324,10 +316,9 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
             }
           }
         } catch {
-          // 2차 엔드포인트로 폴백
+          // 2차 폴백
         }
 
-        // 2차 신경망 번역: MyMemory Neural Translation API
         if (!translatedText) {
           try {
             const mmRes = await fetch(
@@ -340,11 +331,10 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
               }
             }
           } catch {
-            // 3차 엔드포인트로 폴백
+            // 3차 폴백
           }
         }
 
-        // 3차 폴백: Google gtx single API (모바일 네트워크 환경용)
         if (!translatedText) {
           try {
             const gtxRes = await fetch(
@@ -373,7 +363,6 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
         if (translatedText) {
           const finalJapanese = direction === 'ko-to-jp' ? translatedText : text;
 
-          // 로마자 발음 데이터를 일본어 원문 한자와 가나 앵커 정렬하여 사전에 없던 한자의 후리가나까지 자동 추출·등록!
           if (romajiSegments) {
             registerDynamicKanjiReadings(finalJapanese, romajiSegments);
           }
@@ -400,7 +389,6 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
             koreanMeaning: direction === 'ko-to-jp' ? text : translatedText,
             engineType: 'online-live',
             confidence: 100,
-            tip: '실시간 신경망 번역 결과와 한자 후리가나가 오프라인 캐시에 자동 저장되어 비행기 모드에서도 그대로 작동합니다.',
           };
 
           setTranslationResult(liveOut);
@@ -410,13 +398,12 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           return;
         }
       } catch {
-        // 오프라인 구문 번역 결과 유지
+        // 오프라인 결과 유지
       } finally {
         setIsTranslating(false);
       }
     }
 
-    // 5. 지하철 터널·가짜 와이파이 등 온라인 요청이 모두 실패했을 때도 온디바이스 NMT가 켜져 있다면 자동 구원!
     if (nmtStatus.enabled && offlineOut.confidence < 97) {
       await tryOnDeviceNmtUpgrade();
     }
@@ -458,7 +445,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
       (window as unknown as Record<string, unknown>).SpeechRecognition ||
       (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
     if (!SpeechRecognitionClass) {
-      alert('현재 브라우저 환경에서 마이크 음성 인식을 지원하지 않습니다. Chrome 또는 Safari 브라우저를 권장합니다.');
+      alert('현재 브라우저 환경에서 마이크 음성 인식을 지원하지 않습니다.');
       return;
     }
 
@@ -531,366 +518,56 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   };
 
   return (
-    <div className="space-y-5 pb-28">
-      {/* 1. 오프라인 언어팩 캐싱 상태 배너 */}
-      <div className="rounded-[24px] bg-white border border-slate-200/80 p-4 shadow-sm flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+    <div className="space-y-4 pb-28">
+      {/* 1. 최상단 즉시 번역 카드 (불필요한 상단 배너 완전 제거로 열자마자 바로 입력!) */}
+      <div className="rounded-[28px] bg-white border border-slate-200/90 shadow-[0_6px_24px_rgba(15,23,42,0.05)] overflow-hidden">
+        {/* 언어 스왑 & 심플 상태 칩 */}
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => {
+              setDirection((d) => (d === 'ko-to-jp' ? 'jp-to-ko' : 'ko-to-jp'));
+              setTranslationResult(null);
+            }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-100/90 hover:bg-slate-200/70 text-xs font-extrabold text-slate-800 transition cursor-pointer active:scale-95"
+          >
+            <span className={direction === 'ko-to-jp' ? 'text-indigo-600' : 'text-slate-600'}>
+              한국어
+            </span>
+            <ArrowRightLeft className="w-3.5 h-3.5 text-slate-400" />
+            <span className={direction === 'jp-to-ko' ? 'text-indigo-600' : 'text-slate-600'}>
+              일본어
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsEngineSheetOpen(true)}
+            className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer ${
               effectiveOffline
-                ? 'bg-amber-100 text-amber-700'
-                : 'bg-emerald-100 text-emerald-700'
+                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-200/70'
             }`}
           >
             {effectiveOffline ? (
-              <WifiOff className="w-5 h-5" />
-            ) : (
-              <Database className="w-5 h-5" />
-            )}
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-extrabold text-slate-900">
-                {effectiveOffline
-                  ? '✈️ 비행기(오프라인) 언어팩 모드 작동 중'
-                  : 'Gemini 고품질 오프라인 언어팩 기본 탑재 완료'}
-              </span>
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            </div>
-            <p className="text-[11px] text-slate-500 font-medium">
-              내장 문장 {packStats.totalSentences}개 · 어휘 {packStats.totalVocabulary}개 · 한자 루비 2,300+ 기본 탑재됨
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setForceOfflineMode((prev) => !prev)}
-          className={`px-3 py-2 rounded-xl text-[11px] font-extrabold transition shrink-0 cursor-pointer ${
-            forceOfflineMode
-              ? 'bg-amber-500 text-white shadow-sm'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-          }`}
-        >
-          {forceOfflineMode ? '온라인 복귀' : '✈️ 오프라인 체험'}
-        </button>
-      </div>
-
-      {/* 1-B. 아이폰 16 프로 전용 온디바이스 신경망 번역(NMT) 엔진 매니저 */}
-      <div className="rounded-[24px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-4 shadow-sm border border-indigo-500/30 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => setShowNmtPanel((prev) => !prev)}
-            className="flex items-center gap-2.5 text-left flex-1 min-w-0 cursor-pointer"
-          >
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0">
-              <Cpu className="w-4 h-4 text-indigo-300" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-extrabold text-white">
-                  🧠 온디바이스 신경망 AI 엔진
-                </span>
-                <span
-                  className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                    nmtStatus.state === 'ready'
-                      ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/40'
-                      : nmtStatus.state === 'loading'
-                      ? 'bg-amber-500/25 text-amber-200 border border-amber-400/40 animate-pulse'
-                      : nmtStatus.enabled && nmtStatus.isDownloaded
-                      ? 'bg-sky-500/25 text-sky-200 border border-sky-400/40'
-                      : 'bg-slate-700/80 text-slate-300'
-                  }`}
-                >
-                  {nmtStatus.state === 'ready'
-                    ? '추론 준비됨'
-                    : nmtStatus.state === 'loading'
-                    ? `로딩 ${nmtStatus.progress}%`
-                    : nmtStatus.enabled && nmtStatus.isDownloaded
-                    ? '절전 대기 중'
-                    : '미설치 (선택)'}
-                </span>
-              </div>
-              <p className="text-[11px] text-indigo-200/80 truncate mt-0.5">
-                {nmtStatus.message}
-              </p>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowNmtPanel((prev) => !prev)}
-            className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-[11px] font-bold text-indigo-100 flex items-center gap-1 shrink-0 cursor-pointer"
-          >
-            <span>{showNmtPanel ? '접기' : '설정'}</span>
-            {showNmtPanel ? (
-              <ChevronUp className="w-3.5 h-3.5" />
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5" />
-            )}
-          </button>
-        </div>
-
-        {nmtStatus.state === 'loading' && (
-          <div className="space-y-1">
-            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-indigo-400 to-emerald-400 transition-all duration-300"
-                style={{ width: `${Math.max(4, nmtStatus.progress)}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {showNmtPanel && (
-          <div className="pt-2 border-t border-white/10 space-y-3 animate-fadeIn">
-            <p className="text-[11px] text-indigo-100/85 leading-relaxed">
-              출국 전 Wi-Fi에서 양자화(q8) 번역 모델을 1회 받아두면, 비행기 안·지하철 음영지역에서도
-              사전에 없는 자유 문장을 아이폰 A18 Pro 칩으로 직접 신경망 번역합니다. (3분 미사용 시 RAM 자동 반환)
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {(
-                [
-                  {
-                    id: 'm2m100-418m' as OnDeviceModelPreset,
-                    title: 'M2M-100 경량 고속 (권장)',
-                    desc: '양방향 쾌속 추론 · 저메모리 q8',
-                  },
-                  {
-                    id: 'nllb-600m' as OnDeviceModelPreset,
-                    title: 'NLLB-200 아시아 고정밀',
-                    desc: '긴 복합문·뉘앙스 특화 q8',
-                  },
-                ] as const
-              ).map((opt) => {
-                const active = nmtStatus.preset === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setOnDeviceModelPreset(opt.id)}
-                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                      active
-                        ? 'bg-indigo-500/25 border-indigo-400 text-white'
-                        : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="text-xs font-extrabold">{opt.title}</div>
-                    <div className="text-[10.5px] text-indigo-200/75">{opt.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                disabled={nmtStatus.state === 'loading'}
-                onClick={() => downloadAndActivateOnDeviceModel(nmtStatus.preset)}
-                className="px-3.5 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>
-                  {nmtStatus.isDownloaded
-                    ? '캐시에서 엔진 깨우기'
-                    : 'Wi-Fi 모델 다운로드 및 활성화'}
-                </span>
-              </button>
-
-              {nmtStatus.isDownloaded && (
-                <button
-                  type="button"
-                  onClick={() => toggleOnDeviceNmtEnabled(!nmtStatus.enabled)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold cursor-pointer ${
-                    nmtStatus.enabled
-                      ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40'
-                      : 'bg-white/10 text-slate-300'
-                  }`}
-                >
-                  {nmtStatus.enabled ? '자동 NMT 켜짐' : '자동 NMT 꺼짐'}
-                </button>
-              )}
-
-              {nmtStatus.state === 'ready' && (
-                <button
-                  type="button"
-                  onClick={() => suspendOnDeviceWorker()}
-                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-indigo-100 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                  title="디스크 캐시는 유지하고 Safari RAM만 즉시 반환합니다"
-                >
-                  <Moon className="w-3.5 h-3.5" /> RAM 절전
-                </button>
-              )}
-
-              {nmtStatus.isDownloaded && (
-                <button
-                  type="button"
-                  onClick={() => clearOnDeviceModelCache()}
-                  className="px-3 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-bold flex items-center gap-1 cursor-pointer ml-auto"
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> 캐시 삭제
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 여행 편의 도구 퀵 배너 그리드 (맞춤 언어팩 · 엔화/와리깡 계산기 · 카메라 메뉴판 스캐너) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <button
-          type="button"
-          onClick={() => setIsTripPackModalOpen(true)}
-          className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-200/80 hover:border-emerald-300 text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
-        >
-          <div className="flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-extrabold flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition">
-              <Briefcase className="w-4 h-4" />
-            </span>
-            <div>
-              <div className="flex items-center gap-1">
-                <span className="font-extrabold text-xs text-slate-800">
-                  출국 전 맞춤 언어팩
-                </span>
-                <span className="text-[9px] font-black px-1 rounded bg-emerald-600 text-white">
-                  오프라인
-                </span>
-              </div>
-              <p className="text-[10.5px] text-slate-500 font-medium">
-                내 일정 · 알레르기 · 미식팩
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-bold text-emerald-700 group-hover:translate-x-0.5 transition shrink-0">
-            →
-          </span>
-        </button>
-        {onOpenYenCalculator && (
-          <button
-            onClick={onOpenYenCalculator}
-            className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 to-indigo-500/10 border border-amber-200/70 hover:border-amber-300 text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-900 font-extrabold flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition">
-                💴
-              </span>
-              <div>
-                <div className="flex items-center gap-1">
-                  <span className="font-extrabold text-xs text-slate-800">
-                    엔화 & 와리깡 계산기
-                  </span>
-                  <span className="text-[9px] font-black px-1 rounded bg-amber-400 text-slate-950">
-                    10%세
-                  </span>
-                </div>
-                <p className="text-[10.5px] text-slate-500 font-medium">
-                  면세 5,500엔 · 더치페이 잔돈
-                </p>
-              </div>
-            </div>
-            <span className="text-xs font-bold text-amber-700 group-hover:translate-x-0.5 transition shrink-0">
-              →
-            </span>
-          </button>
-        )}
-
-        {onOpenCameraScanner && (
-          <button
-            onClick={onOpenCameraScanner}
-            className="p-3 rounded-2xl bg-gradient-to-r from-indigo-500/10 to-violet-500/10 border border-indigo-200/70 hover:border-indigo-300 text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-extrabold flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition">
-                📷
-              </span>
-              <div>
-                <div className="flex items-center gap-1">
-                  <span className="font-extrabold text-xs text-slate-800">
-                    메뉴판·간판 AI 스캐너
-                  </span>
-                  <span className="text-[9px] font-black px-1 rounded bg-indigo-600 text-white">
-                    Vision
-                  </span>
-                </div>
-                <p className="text-[10.5px] text-slate-500 font-medium">
-                  손글씨 한자 · 발음 · 주문
-                </p>
-              </div>
-            </div>
-            <span className="text-xs font-bold text-indigo-700 group-hover:translate-x-0.5 transition shrink-0">
-              →
-            </span>
-          </button>
-        )}
-      </div>
-
-      {/* 2. 파파고 스타일 모던 양방향 번역 카드 */}
-      <div className="rounded-[28px] bg-white border border-slate-200/90 shadow-[0_4px_20px_rgba(15,23,42,0.05)] overflow-hidden">
-        {/* 언어 전환 탭 헤더 */}
-        <div className="px-5 py-3.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 text-xs font-extrabold">
-            <span
-              className={
-                direction === 'ko-to-jp'
-                  ? 'text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg'
-                  : 'text-slate-600'
-              }
-            >
-              🇰🇷 한국어
-            </span>
-            <button
-              onClick={() => {
-                setDirection((d) => (d === 'ko-to-jp' ? 'jp-to-ko' : 'ko-to-jp'));
-                setTranslationResult(null);
-              }}
-              className="p-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 shadow-2xs transition cursor-pointer"
-              title="번역 방향 바꾸기"
-            >
-              <ArrowRightLeft className="w-3.5 h-3.5" />
-            </button>
-            <span
-              className={
-                direction === 'jp-to-ko'
-                  ? 'text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg'
-                  : 'text-slate-600'
-              }
-            >
-              🇯🇵 일본어
-            </span>
-          </div>
-
-          <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
-            {effectiveOffline ? (
               <>
-                <WifiOff className="w-3 h-3 text-amber-500" /> 데이터 0% 오프라인 번역
+                <WifiOff className="w-3 h-3" />
+                <span>오프라인 모드</span>
               </>
-            ) : hasAiKey ? (
-              <button
-                onClick={onOpenSettings}
-                className="flex items-center gap-1 text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-extrabold cursor-pointer"
-                title="AI 엔진 설정 열기"
-              >
-                <Cpu className="w-3 h-3" />
-                {isGeminiConfigured ? 'Gemini AI 번역 활성' : 'OpenAI GPT 번역 활성'}
-              </button>
             ) : (
-              <button
-                onClick={onOpenSettings}
-                className="flex items-center gap-1 hover:text-indigo-600 cursor-pointer"
-                title="우측 상단 설정에서 Gemini API 키를 등록하면 LLM 통번역이 활성화됩니다"
-              >
-                <Wifi className="w-3 h-3 text-emerald-500" /> 실시간 신경망 하이브리드
-              </button>
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>{hasAiKey ? 'AI 실시간' : '실시간 번역'}</span>
+              </>
             )}
-          </span>
+          </button>
         </div>
 
-        {/* 입력 영역 */}
-        <div className="p-5 space-y-3">
+        {/* 번역 텍스트 입력창 */}
+        <div className="p-4 sm:p-5 space-y-3">
           <div className="relative">
             <textarea
-              rows={2}
+              rows={3}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => {
@@ -901,10 +578,10 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
               }}
               placeholder={
                 direction === 'ko-to-jp'
-                  ? '번역할 문장을 입력하세요 (예: 예약은 안 했는데 두 명 자리 있나요?)'
-                  : '일본어 문장을 입력하거나 마이크로 들려주세요'
+                  ? '하고 싶은 말을 편하게 입력하세요\n예) 예약 안 했는데 두 명 자리 있나요?'
+                  : '점원의 일본어를 입력하거나 음성으로 들려주세요'
               }
-              className="w-full text-[16px] font-semibold text-slate-900 placeholder:text-slate-400 bg-transparent resize-none focus:outline-none pr-8"
+              className="w-full text-[16px] leading-relaxed font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal bg-transparent resize-none focus:outline-none pr-8"
             />
             {inputText && (
               <button
@@ -912,8 +589,8 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                   setInputText('');
                   setTranslationResult(null);
                 }}
-                className="absolute top-0 right-0 p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
-                title="입력 내용 지우기"
+                className="absolute top-0 right-0 p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition cursor-pointer"
+                title="지우기"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -923,9 +600,9 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           <div className="flex items-center justify-between pt-1">
             <button
               onClick={handleVoiceInput}
-              className={`px-3.5 py-2 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+              className={`px-4 py-2.5 rounded-full text-xs font-extrabold flex items-center gap-1.5 transition cursor-pointer ${
                 isListening
-                  ? 'bg-rose-600 text-white animate-pulse shadow-md'
+                  ? 'bg-rose-600 text-white animate-pulse shadow-sm'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
               }`}
             >
@@ -942,92 +619,67 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
 
             <button
               onClick={() => handleTranslate()}
-              className="px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/20 active:scale-[0.98] transition cursor-pointer"
+              className="px-5 py-2.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm active:scale-[0.98] transition cursor-pointer"
             >
-              <span>번역하기</span>
+              <span>번역</span>
               <CornerDownLeft className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* 번역 결과 영역 (한자 바로 위에 후리가나가 선명하게 표시!) */}
+        {/* 깔끔하게 정돈된 번역 결과 영역 */}
         {translationResult && (
-          <div className="p-5 bg-indigo-50/50 border-t border-indigo-100/80 space-y-3.5 animate-fadeIn">
+          <div className="p-4 sm:p-5 bg-indigo-50/45 border-t border-indigo-100/80 space-y-3.5 animate-fadeIn">
+            {/* 상단 상태 표시 + 미니 유틸 아이콘 2개 */}
             <div className="flex items-center justify-between">
-              <span
-                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 ${
-                  isTranslating
-                    ? 'bg-amber-100 text-amber-800 animate-pulse'
-                    : translationResult.engineType === 'gemini-ai' ||
-                      translationResult.engineType === 'openai-ai'
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-indigo-100 text-indigo-700'
-                }`}
-              >
+              <span className="text-[11px] font-bold text-indigo-600 flex items-center gap-1.5">
                 {isTranslating ? (
                   <>
-                    <Sparkles className="w-3 h-3 text-amber-600 animate-spin" />
-                    <span>
-                      {effectiveOffline && nmtStatus.enabled
-                        ? '🧠 아이폰 온디바이스 신경망 교정 중...'
-                        : '⚡ Gemini Flash AI 초고속 업그레이드 중...'}
-                    </span>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+                    <span>정밀 번역 업그레이드 중...</span>
                   </>
-                ) : translationResult.engineType === 'gemini-ai' ? (
-                  '✨ Gemini Flash AI 초고속 번역 완료'
-                ) : translationResult.engineType === 'openai-ai' ? (
-                  '✨ OpenAI GPT 실시간 번역'
                 ) : translationResult.engineType === 'on-device-nmt' ? (
-                  '🧠 아이폰 온디바이스 신경망 AI 번역 완료'
-                ) : translationResult.engineType === 'trip-custom-pack' ? (
-                  '🎒 내 맞춤 여행 언어팩 0.001초 즉시 번역'
-                ) : translationResult.engineType === 'offline-neural-cache' ? (
-                  '⚡ 0.001초 고속 캐시 메모리'
-                ) : translationResult.engineType === 'offline-pack' ? (
-                  '⚡ 0.01초 오프라인 형태소·구문 번역'
+                  '🧠 온디바이스 AI 번역'
+                ) : translationResult.engineType === 'gemini-ai' ||
+                  translationResult.engineType === 'openai-ai' ? (
+                  '✨ AI 문맥 번역 완료'
+                ) : effectiveOffline ? (
+                  '⚡ 오프라인 즉시 번역'
                 ) : (
-                  '⚡ 실시간 신경망 번역'
+                  '⚡ 번역 완료'
                 )}
               </span>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={() => {
-                    const textToCopy =
+                  onClick={() =>
+                    handleCopyText(
                       direction === 'ko-to-jp'
                         ? translationResult.japanese
-                        : translationResult.koreanMeaning;
-                    handleCopyText(textToCopy);
-                  }}
-                  className={`px-2.5 py-1.5 rounded-xl border text-xs font-extrabold flex items-center gap-1 transition cursor-pointer ${
-                    copiedOutput
-                      ? 'bg-emerald-600 border-emerald-600 text-white'
-                      : 'bg-white hover:bg-indigo-50 border-indigo-200 text-indigo-700'
-                  }`}
-                  title={
-                    direction === 'ko-to-jp'
-                      ? '번역된 일본어 문장 복사'
-                      : '번역된 한국어 문장 복사'
+                        : translationResult.koreanMeaning
+                    )
                   }
+                  className={`p-2 rounded-xl transition cursor-pointer ${
+                    copiedOutput
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                  }`}
+                  title="문장 복사"
                 >
                   {copiedOutput ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" /> 복사됨
-                    </>
+                    <Check className="w-4 h-4" />
                   ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />{' '}
-                      {direction === 'ko-to-jp' ? '일본어 복사' : '한국어 복사'}
-                    </>
+                    <Copy className="w-4 h-4" />
                   )}
                 </button>
+
                 {onSaveExpression && (
                   <button
                     onClick={() => {
                       onSaveExpression({
                         id: `trans-${Date.now()}`,
                         scenarioId: 'translator',
-                        scenarioTitle: '실시간 번역 북마크',
+                        scenarioTitle: '번역 북마크',
                         speaker: 'customer',
                         japanese: translationResult.japanese,
                         furigana: translationResult.furigana,
@@ -1039,356 +691,528 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                       setJustSaved(true);
                       setTimeout(() => setJustSaved(false), 1800);
                     }}
-                    className={`px-2.5 py-1.5 rounded-xl border text-xs font-extrabold flex items-center gap-1 transition cursor-pointer ${
+                    className={`p-2 rounded-xl transition cursor-pointer ${
                       justSaved
-                        ? 'bg-emerald-600 border-emerald-600 text-white'
-                        : 'bg-white hover:bg-indigo-50 border-indigo-200 text-indigo-700'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/80'
                     }`}
-                    title="내 단어장에 저장"
+                    title="보관함에 저장"
                   >
                     {justSaved ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" /> 저장됨
-                      </>
+                      <Check className="w-4 h-4" />
                     ) : (
-                      <>
-                        <BookmarkPlus className="w-3.5 h-3.5" /> 단어장 저장
-                      </>
+                      <BookmarkPlus className="w-4 h-4" />
                     )}
                   </button>
                 )}
-                <button
-                  onClick={() =>
-                    setBigScreenPhrase({
-                      japanese: translationResult.japanese,
-                      furigana: translationResult.furigana,
-                      koreanPronunciation: translationResult.koreanPronunciation,
-                      korean: translationResult.koreanMeaning,
-                    })
-                  }
-                  className="px-3 py-1.5 rounded-xl bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-extrabold flex items-center gap-1 shadow-2xs cursor-pointer"
-                >
-                  <Maximize2 className="w-3.5 h-3.5" /> 큰 화면
-                </button>
-                <button
-                  onClick={() => speakJapanese(translationResult.japanese, ttsSpeed)}
-                  className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm cursor-pointer"
-                  title="발음 듣기"
-                >
-                  <Volume2 className="w-4 h-4" />
-                </button>
               </div>
             </div>
 
-            {/* 한자 위에 후리가나가 달린 일본어 결과 */}
-            <div className="py-1">
+            {/* 큼직한 일본어 + 한자 루비 */}
+            <div className="py-0.5">
               <FuriganaText
                 text={translationResult.japanese}
                 showFurigana={showFurigana}
-                className="text-xl sm:text-2xl font-black text-slate-900"
+                className="text-[22px] sm:text-2xl font-black text-slate-900"
                 rtClassName="text-[11px] font-bold text-indigo-600"
               />
             </div>
 
-            {/* 1:1 매칭 한글 발음(어절 박자 가이드) 및 한국어 의미 */}
-            <div className="p-3.5 rounded-2xl bg-white border border-indigo-100/90 space-y-2">
-              <div className="flex items-start justify-between gap-2">
-                <div className="space-y-1 min-w-0 flex-1">
-                  <span className="text-[10.5px] font-extrabold text-indigo-400 uppercase tracking-wider block">
-                    🗣️ 박자 맞춰 읽기
-                  </span>
-                  <RhythmicPronunciation
-                    pronunciation={translationResult.koreanPronunciation}
-                    japanese={translationResult.japanese}
-                  />
+            {/* 박자 발음 & 한국어 의미 */}
+            <div className="p-3.5 rounded-2xl bg-white border border-indigo-100/90 space-y-1.5">
+              <RhythmicPronunciation
+                pronunciation={translationResult.koreanPronunciation}
+                japanese={translationResult.japanese}
+              />
+              {direction === 'jp-to-ko' && (
+                <div className="text-base font-extrabold text-slate-900 pt-1.5 border-t border-slate-100">
+                  {translationResult.koreanMeaning}
                 </div>
-                <button
-                  onClick={() =>
-                    handleCopyText(
-                      `${translationResult.japanese} [${translationResult.koreanPronunciation}]`
-                    )
-                  }
-                  className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 shrink-0 pt-0.5 cursor-pointer"
-                  title="일본어 문장과 발음을 함께 복사"
-                >
-                  <Copy className="w-3 h-3" />
-                  <span>발음함께 복사</span>
-                </button>
-              </div>
-              <div className="text-xs text-slate-500 leading-relaxed">
-                히라가나: {translationResult.furigana}
-              </div>
-              <div className="text-sm font-bold text-slate-800 pt-1.5 border-t border-slate-100">
-                뜻: {translationResult.koreanMeaning}
-              </div>
+              )}
             </div>
 
-            {translationResult.tip && (
-              <div className="text-[11px] text-slate-500 flex items-center gap-1.5 px-1">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span>{translationResult.tip}</span>
-              </div>
-            )}
+            {/* 핵심 현장 액션 2개만 큼직하게 배치 */}
+            <div className="grid grid-cols-2 gap-2 pt-0.5">
+              <button
+                onClick={() => speakJapanese(translationResult.japanese, ttsSpeed)}
+                className="py-3 px-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-[0.98] transition cursor-pointer"
+              >
+                <Volume2 className="w-4 h-4" />
+                <span>발음 듣기</span>
+              </button>
+              <button
+                onClick={() =>
+                  setBigScreenPhrase({
+                    japanese: translationResult.japanese,
+                    furigana: translationResult.furigana,
+                    koreanPronunciation: translationResult.koreanPronunciation,
+                    korean: translationResult.koreanMeaning,
+                  })
+                }
+                className="py-3 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-[0.98] transition cursor-pointer"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>크게 보여주기</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* 2-B. 최근 주고받은 번역 미니 히스토리 (점원과 연속 대화 시 직전 문장 1초 재호출) */}
+      {/* 2. 최근 대화 미니 기록 (2개 이상일 때만 깔끔한 한 줄 칩으로 노출) */}
       {recentHistory.length > 1 && (
-        <div className="rounded-[22px] bg-white border border-slate-200/80 p-3.5 space-y-2 shadow-2xs">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-extrabold text-slate-700">
-              🕒 방금 번역한 대화 기록 ({recentHistory.length})
-            </span>
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          {recentHistory.map((hist, hIdx) => (
             <button
+              key={hIdx}
               type="button"
-              onClick={() => setRecentHistory([])}
-              className="text-[11px] font-bold text-slate-400 hover:text-rose-500 cursor-pointer"
+              onClick={() => {
+                setDirection(hist.direction);
+                setInputText(hist.source);
+                setTranslationResult(hist.output);
+              }}
+              className="shrink-0 max-w-[190px] px-3 py-1.5 rounded-full bg-white border border-slate-200/90 text-[11px] font-bold text-slate-700 hover:border-indigo-300 truncate cursor-pointer shadow-2xs"
             >
-              비우기
+              🕒 {hist.source}
             </button>
+          ))}
+        </div>
+      )}
+
+      {/* 3. 여행 필수 도구 4종 컴팩트 아이콘 바 (기존 3단 배너를 깔끔한 1줄 위젯으로 압축!) */}
+      <div className="grid grid-cols-4 gap-2">
+        <button
+          type="button"
+          onClick={onOpenCameraScanner}
+          className="p-3 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/80 flex flex-col items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <Camera className="w-4 h-4" />
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
-            {recentHistory.map((hist, hIdx) => (
+          <span className="text-[11px] font-extrabold text-slate-700">메뉴판 스캔</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenYenCalculator}
+          className="p-3 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/80 flex flex-col items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <Calculator className="w-4 h-4" />
+          </div>
+          <span className="text-[11px] font-extrabold text-slate-700">엔화 계산기</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsTripPackModalOpen(true)}
+          className="p-3 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/80 flex flex-col items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <Briefcase className="w-4 h-4" />
+          </div>
+          <span className="text-[11px] font-extrabold text-slate-700">맞춤 언어팩</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsEngineSheetOpen(true)}
+          className="p-3 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/80 flex flex-col items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition cursor-pointer relative"
+        >
+          <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+            <Cpu className="w-4 h-4" />
+          </div>
+          {nmtStatus.isDownloaded && (
+            <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-2.5 right-3" />
+          )}
+          <span className="text-[11px] font-extrabold text-slate-700">오프라인 AI</span>
+        </button>
+      </div>
+
+      {/* 4. 상황별 회화집 / 위급 SOS 깔끔한 세그먼트 분리 (한 화면 무한 나열 방지!) */}
+      <div className="space-y-3 pt-1">
+        <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-slate-200/70">
+          <button
+            type="button"
+            onClick={() => setBottomSection('phrasebook')}
+            className={`py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+              bottomSection === 'phrasebook'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            ⚡ 상황별 빠른 회화
+          </button>
+          <button
+            type="button"
+            onClick={() => setBottomSection('sos')}
+            className={`py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+              bottomSection === 'sos'
+                ? 'bg-white text-rose-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            🆘 위급 상황 SOS
+          </button>
+        </div>
+
+        {bottomSection === 'phrasebook' ? (
+          <div className="rounded-3xl bg-white border border-slate-200/80 p-4 space-y-3 shadow-2xs">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              {['식당', '쇼핑', '호텔', '교통', '알레르기', '병원', '긴급', '일상'].map(
+                (cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setCorpusCategory(cat)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-extrabold shrink-0 transition cursor-pointer ${
+                      corpusCategory === cat
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                )
+              )}
+              {cachedEntries.length > 0 && (
+                <button
+                  onClick={() => setCorpusCategory('AI캐시')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-extrabold shrink-0 transition cursor-pointer ${
+                    corpusCategory === 'AI캐시'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-emerald-50 text-emerald-700'
+                  }`}
+                >
+                  내 기록 ({cachedEntries.length})
+                </button>
+              )}
+            </div>
+
+            <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+              {corpusCategory === 'AI캐시'
+                ? cachedEntries.map((entry, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setDirection(entry.direction);
+                        setInputText(entry.source);
+                        setTranslationResult({
+                          ...entry.output,
+                          engineType: 'offline-neural-cache',
+                        });
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="w-full text-left py-3 px-1 hover:bg-slate-50 transition flex items-center justify-between gap-2 cursor-pointer"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 truncate">
+                          {entry.source}
+                        </div>
+                        <div className="text-[11px] text-indigo-600 font-semibold truncate mt-0.5">
+                          {entry.output.japanese}
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
+                    </button>
+                  ))
+                : filteredCorpus.map((item, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setDirection('ko-to-jp');
+                        setInputText(item.ko);
+                        handleTranslate(item.ko);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="w-full text-left py-3 px-1 hover:bg-slate-50 transition flex items-center justify-between gap-2 cursor-pointer"
+                    >
+                      <span className="text-xs font-bold text-slate-800">{item.ko}</span>
+                      <ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
+                    </button>
+                  ))}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               <button
-                key={hIdx}
+                onClick={() => setSelectedEmergencyCat('all')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold shrink-0 cursor-pointer ${
+                  selectedEmergencyCat === 'all'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-600 border border-slate-200'
+                }`}
+              >
+                전체
+              </button>
+              {(Object.keys(EMERGENCY_CATEGORY_META) as EmergencyCategory[]).map((cat) => {
+                const meta = EMERGENCY_CATEGORY_META[cat];
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedEmergencyCat(cat)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold shrink-0 flex items-center gap-1 cursor-pointer ${
+                      selectedEmergencyCat === cat
+                        ? 'bg-rose-600 text-white'
+                        : 'bg-white text-slate-600 border border-slate-200'
+                    }`}
+                  >
+                    <span>{meta.emoji}</span>
+                    <span>{meta.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-2.5">
+              {filteredEmergency.map((item) => {
+                const meta = EMERGENCY_CATEGORY_META[item.category];
+                const isExpanded = expandedSosId === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-3xl bg-white border border-slate-200/80 p-4 space-y-2.5 shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg">
+                        {meta.emoji} {meta.label}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() =>
+                            setBigScreenPhrase({
+                              japanese: item.japanese,
+                              furigana: item.furigana,
+                              koreanPronunciation: item.koreanPronunciation,
+                              korean: item.korean,
+                            })
+                          }
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-[11px] font-bold text-slate-700 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Maximize2 className="w-3 h-3" /> 크게 보기
+                        </button>
+                        <button
+                          onClick={() => speakJapanese(item.japanese, ttsSpeed)}
+                          className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer"
+                        >
+                          <Volume2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="text-sm font-extrabold text-slate-800">{item.korean}</div>
+
+                    <FuriganaText
+                      text={item.japanese}
+                      showFurigana={showFurigana}
+                      className="text-base font-black text-slate-900"
+                      rtClassName="text-[10px] font-bold text-indigo-600"
+                    />
+
+                    <RhythmicPronunciation
+                      pronunciation={item.koreanPronunciation}
+                      japanese={item.japanese}
+                      variant="compact"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedSosId(isExpanded ? null : item.id)
+                      }
+                      className="text-[11px] font-bold text-slate-400 hover:text-indigo-600 cursor-pointer pt-0.5"
+                    >
+                      {isExpanded ? '예상 답변 접기 ▲' : '👂 상대방 예상 대답 보기 ▼'}
+                    </button>
+
+                    {isExpanded && (
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-2 text-xs animate-fadeIn">
+                        <div className="space-y-0.5">
+                          <FuriganaText
+                            text={item.expectedReplyJp}
+                            showFurigana={showFurigana}
+                            className="font-bold text-slate-900"
+                            rtClassName="text-[9.5px] text-indigo-600"
+                          />
+                          <div className="text-[11px] text-slate-500">
+                            {item.expectedReplyKo}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => speakJapanese(item.expectedReplyJp, ttsSpeed)}
+                          className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 shrink-0 cursor-pointer"
+                        >
+                          <Volume2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 5. 오프라인 번역 엔진 & 온디바이스 AI 바텀 시트 (메인 화면 번잡함 완전 격리!) */}
+      {isEngineSheetOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
+          <div className="w-full max-w-md bg-white rounded-t-[32px] sm:rounded-[32px] p-5 pb-[calc(env(safe-area-inset-bottom,16px)+1.2rem)] space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  번역 엔진 & 비행기 모드 설정
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  내장 문장 {packStats.totalSentences}개 · 어휘 {packStats.totalVocabulary}개 기본 탑재됨
+                </p>
+              </div>
+              <button
+                onClick={() => setIsEngineSheetOpen(false)}
+                className="p-2 rounded-full bg-slate-100 text-slate-500 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 비행기 모드 테스트 스위치 */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-extrabold text-slate-900">
+                  ✈️ 오프라인(비행기 모드) 체험
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  데이터 0바이트 상태에서 번역 품질을 미리 확인합니다
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForceOfflineMode((p) => !p)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+                  forceOfflineMode
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-white border border-slate-200 text-slate-700'
+                }`}
+              >
+                {forceOfflineMode ? '켜짐' : '꺼짐'}
+              </button>
+            </div>
+
+            {/* 온디바이스 신경망 AI 모델 관리 */}
+            <div className="p-4 rounded-2xl bg-slate-900 text-white space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold flex items-center gap-1.5">
+                  <Cpu className="w-4 h-4 text-indigo-300" />
+                  아이폰 온디바이스 신경망 AI
+                </span>
+                <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-white/15 text-indigo-200 font-bold">
+                  {nmtStatus.state === 'ready'
+                    ? '활성화됨'
+                    : nmtStatus.state === 'loading'
+                    ? `다운로드 ${nmtStatus.progress}%`
+                    : nmtStatus.isDownloaded
+                    ? '설치됨 (대기)'
+                    : '미설치 (선택)'}
+                </span>
+              </div>
+
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Wi-Fi에서 1회 받아두면 비행기 안에서도 사전에 없는 자유 문장을 아이폰 칩으로 직접 번역합니다.
+              </p>
+
+              {nmtStatus.state === 'loading' && (
+                <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-400 transition-all duration-300"
+                    style={{ width: `${Math.max(5, nmtStatus.progress)}%` }}
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { id: 'm2m100-418m' as OnDeviceModelPreset, label: 'M2M-100 경량 고속' },
+                    { id: 'nllb-600m' as OnDeviceModelPreset, label: 'NLLB-200 고정밀' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setOnDeviceModelPreset(opt.id)}
+                    className={`py-2 px-2.5 rounded-xl border text-[11px] font-bold cursor-pointer ${
+                      nmtStatus.preset === opt.id
+                        ? 'bg-indigo-600 border-indigo-400 text-white'
+                        : 'bg-white/5 border-white/10 text-slate-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={nmtStatus.state === 'loading'}
+                  onClick={() => downloadAndActivateOnDeviceModel(nmtStatus.preset)}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{nmtStatus.isDownloaded ? '엔진 깨우기' : 'Wi-Fi 모델 다운로드'}</span>
+                </button>
+
+                {nmtStatus.isDownloaded && (
+                  <button
+                    type="button"
+                    onClick={() => toggleOnDeviceNmtEnabled(!nmtStatus.enabled)}
+                    className="py-2.5 px-3 rounded-xl bg-white/10 text-xs font-bold text-slate-200 cursor-pointer"
+                  >
+                    {nmtStatus.enabled ? '자동켜짐' : '꺼짐'}
+                  </button>
+                )}
+
+                {nmtStatus.state === 'ready' && (
+                  <button
+                    type="button"
+                    onClick={() => suspendOnDeviceWorker()}
+                    className="py-2.5 px-2.5 rounded-xl bg-white/10 text-xs font-bold text-indigo-200 cursor-pointer"
+                    title="메모리 반환"
+                  >
+                    <Moon className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {nmtStatus.isDownloaded && (
+                  <button
+                    type="button"
+                    onClick={() => clearOnDeviceModelCache()}
+                    className="py-2.5 px-2.5 rounded-xl bg-rose-500/25 text-rose-200 text-xs font-bold cursor-pointer"
+                    title="캐시 삭제"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {onOpenSettings && (
+              <button
                 type="button"
                 onClick={() => {
-                  setDirection(hist.direction);
-                  setInputText(hist.source);
-                  setTranslationResult(hist.output);
+                  setIsEngineSheetOpen(false);
+                  onOpenSettings();
                 }}
-                className="shrink-0 max-w-[230px] text-left px-3 py-2 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200/80 hover:border-indigo-200 transition cursor-pointer"
+                className="w-full py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-xs font-extrabold text-slate-700 cursor-pointer"
               >
-                <div className="text-[11px] font-bold text-slate-800 truncate">
-                  {hist.source}
-                </div>
-                <div className="text-[10.5px] font-semibold text-indigo-600 truncate">
-                  → {hist.direction === 'ko-to-jp' ? hist.output.japanese : hist.output.koreanMeaning}
-                </div>
+                온라인 Gemini / GPT API 키 설정 열기 →
               </button>
-            ))}
+            )}
           </div>
         </div>
       )}
 
-      {/* 3. 오프라인 언어팩 상황별 원터치 문장 칩 (탭 한 번으로 즉시 번역 & 음성 출력) */}
-      <div className="rounded-[24px] bg-white border border-slate-200/80 p-5 space-y-3.5 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-extrabold text-slate-900">
-              ⚡ 오프라인 언어팩 상황별 즉시 번역 사전
-            </h3>
-            <p className="text-[11px] text-slate-500">
-              비행기 모드에서도 탭 한 번으로 한자 후리가나와 음성을 확인할 수 있습니다
-            </p>
-          </div>
-        </div>
-
-        {/* 상황 카테고리 탭 */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {cachedEntries.length > 0 && (
-            <button
-              onClick={() => setCorpusCategory('AI캐시')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold shrink-0 transition cursor-pointer ${
-                corpusCategory === 'AI캐시'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-              }`}
-            >
-              ✨ 내 AI 캐시 ({cachedEntries.length})
-            </button>
-          )}
-          {['일상', '식당', '쇼핑', '호텔', '교통', '알레르기', '병원', '긴급'].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCorpusCategory(cat)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold shrink-0 transition cursor-pointer ${
-                corpusCategory === cat
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
-          {corpusCategory === 'AI캐시' ? (
-            cachedEntries.map((entry, idx) => (
-              <button
-                key={idx}
-                onClick={() => {
-                  setDirection(entry.direction);
-                  setInputText(entry.source);
-                  setTranslationResult({
-                    ...entry.output,
-                    engineType: 'offline-neural-cache',
-                  });
-                }}
-                className="text-left p-3 rounded-2xl bg-emerald-50/60 hover:bg-emerald-100/70 border border-emerald-200/80 transition flex items-center justify-between gap-2 cursor-pointer group"
-              >
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900 truncate">
-                    {entry.source}
-                  </div>
-                  <div className="text-[11px] font-semibold text-emerald-700 truncate">
-                    → {entry.output.japanese}
-                  </div>
-                </div>
-                <span className="text-[11px] font-extrabold text-emerald-600 shrink-0">
-                  캐시 불러오기 →
-                </span>
-              </button>
-            ))
-          ) : (
-            filteredCorpus.map((item, idx) => (
-              <button
-                key={idx}
-                onClick={() => {
-                  setDirection('ko-to-jp');
-                  setInputText(item.ko);
-                  handleTranslate(item.ko);
-                }}
-                className="text-left p-3 rounded-2xl bg-slate-50 hover:bg-indigo-50/70 border border-slate-200/60 hover:border-indigo-200 transition flex items-center justify-between gap-2 cursor-pointer group"
-              >
-                <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">
-                  {item.ko}
-                </span>
-                <span className="text-[11px] font-semibold text-indigo-500 shrink-0">
-                  번역 보기 →
-                </span>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* 4. 위급 돌발상황 SOS 카드 리스트 */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-sm font-extrabold text-slate-900">
-            🆘 돌발상황 SOS 소통 카드 (예상 답변 포함)
-          </h3>
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-          <button
-            onClick={() => setSelectedEmergencyCat('all')}
-            className={`px-3.5 py-2 rounded-2xl text-xs font-extrabold shrink-0 cursor-pointer ${
-              selectedEmergencyCat === 'all'
-                ? 'bg-slate-900 text-white'
-                : 'bg-white text-slate-600 border border-slate-200'
-            }`}
-          >
-            전체 ({OFFLINE_EMERGENCY_PHRASES.length})
-          </button>
-          {(Object.keys(EMERGENCY_CATEGORY_META) as EmergencyCategory[]).map((cat) => {
-            const meta = EMERGENCY_CATEGORY_META[cat];
-            return (
-              <button
-                key={cat}
-                onClick={() => setSelectedEmergencyCat(cat)}
-                className={`px-3.5 py-2 rounded-2xl text-xs font-extrabold shrink-0 flex items-center gap-1 cursor-pointer ${
-                  selectedEmergencyCat === cat
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white text-slate-600 border border-slate-200'
-                }`}
-              >
-                <span>{meta.emoji}</span>
-                <span>{meta.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="space-y-3">
-          {filteredEmergency.map((item) => {
-            const meta = EMERGENCY_CATEGORY_META[item.category];
-            return (
-              <div
-                key={item.id}
-                className="rounded-[24px] bg-white border border-slate-200/80 p-5 space-y-3 shadow-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
-                    {meta.emoji} {meta.label}
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() =>
-                        setBigScreenPhrase({
-                          japanese: item.japanese,
-                          furigana: item.furigana,
-                          koreanPronunciation: item.koreanPronunciation,
-                          korean: item.korean,
-                        })
-                      }
-                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" /> 큰 화면
-                    </button>
-                    <button
-                      onClick={() => speakJapanese(item.japanese, ttsSpeed)}
-                      className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="text-sm font-extrabold text-slate-700">{item.korean}</div>
-
-                {/* 한자 위에 후리가나가 올라간 일본어 문장 */}
-                <div className="pt-0.5">
-                  <FuriganaText
-                    text={item.japanese}
-                    showFurigana={showFurigana}
-                    className="text-lg font-black text-slate-900"
-                    rtClassName="text-[10.5px] font-bold text-indigo-600"
-                  />
-                </div>
-
-                <div className="py-0.5">
-                  <RhythmicPronunciation
-                    pronunciation={item.koreanPronunciation}
-                    japanese={item.japanese}
-                    variant="compact"
-                  />
-                </div>
-
-                {/* 상대방 예상 답변 */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-2 text-xs">
-                  <div className="space-y-1">
-                    <div className="text-slate-700">
-                      <span className="font-extrabold text-amber-600">👂 상대방 예상 대답: </span>
-                      <FuriganaText
-                        text={item.expectedReplyJp}
-                        showFurigana={showFurigana}
-                        className="font-bold text-slate-900"
-                        rtClassName="text-[9.5px] text-indigo-600"
-                      />
-                    </div>
-                    <div className="text-[11px] text-slate-500 font-medium">
-                      → {item.expectedReplyKo}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => speakJapanese(item.expectedReplyJp, ttsSpeed)}
-                    className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 shrink-0 cursor-pointer"
-                    title="예상 답변 듣기"
-                  >
-                    <Volume2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 5. 점원에게 보여주는 전체화면 SOS 빅카드 (아이폰 16 프로 다이내믹 아일랜드 & 홈바 대응) */}
+      {/* 6. 점원에게 보여주는 전체화면 빅카드 */}
       {bigScreenPhrase && (
         <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col justify-between pt-[calc(env(safe-area-inset-top,20px)+1.2rem)] px-6 pb-[calc(env(safe-area-inset-bottom,20px)+1.2rem)] animate-fadeIn">
           <div className="flex items-center justify-between">
@@ -1404,7 +1228,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           </div>
 
           <div className="my-auto space-y-6 text-center px-2">
-            <p className="text-xs font-bold text-amber-300 uppercase tracking-widest">
+            <p className="text-xs font-bold text-amber-300">
               すみません、これを読んでいただけますか？
             </p>
             <div className="py-2">
@@ -1432,7 +1256,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
               onClick={() => speakJapanese(bigScreenPhrase.japanese, 0.95)}
               className="py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl cursor-pointer"
             >
-              <Volume2 className="w-5 h-5" /> 일본어 음성 크게 재생
+              <Volume2 className="w-5 h-5" /> 음성 크게 재생
             </button>
             <button
               onClick={() => setBigScreenPhrase(null)}
@@ -1443,7 +1267,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
           </div>
         </div>
       )}
-      {/* 6. 출국 전 맞춤 여행 언어팩 모달 (IndexedDB + Gemini 일정 맞춤 생성) */}
+
       <TripPackModal
         isOpen={isTripPackModalOpen}
         onClose={() => setIsTripPackModalOpen(false)}
