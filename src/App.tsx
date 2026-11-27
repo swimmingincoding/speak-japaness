@@ -6,8 +6,6 @@ import {
   AIConfig,
   SavedExpression,
 } from './types/conversation';
-import { SCENARIOS } from './data/scenarios';
-import { ScenarioList } from './components/ScenarioList';
 import { OfflineTranslator } from './components/OfflineTranslator';
 import { ChunkErrorBoundary } from './components/ChunkErrorBoundary';
 import { stopSpeaking } from './utils/speech';
@@ -23,6 +21,9 @@ import {
   Calculator,
 } from 'lucide-react';
 
+const ScenarioList = lazy(() =>
+  import('./components/ScenarioList').then((m) => ({ default: m.ScenarioList }))
+);
 const RolePlayRoom = lazy(() =>
   import('./components/RolePlayRoom').then((m) => ({ default: m.RolePlayRoom }))
 );
@@ -201,7 +202,6 @@ export const App: React.FC = () => {
   }, [activeTab]);
 
   const normalizeJpKey = (s: string) => s.replace(/[\s。、！？!?]/g, '').trim();
-  const allScenarios = [...customScenarios, ...SCENARIOS];
   const savedIds = new Set(savedExpressions.map((s) => s.id));
   const savedJapaneseSet = new Set(savedExpressions.map((s) => normalizeJpKey(s.japanese)));
   const n3MasteredSet = new Set(n3MasteredList);
@@ -367,7 +367,7 @@ export const App: React.FC = () => {
                   )}
                   {activeTab === 'scenarios' && (
                     <ScenarioList
-                      scenarios={allScenarios}
+                      customScenarios={customScenarios}
                       completedMap={completedMap}
                       onSelectScenario={(scenario, role) => {
                         stopSpeaking();
@@ -382,11 +382,11 @@ export const App: React.FC = () => {
                       }}
                       onOpenCustomModal={() => setIsCustomModalOpen(true)}
                       onDeleteCustomScenario={handleDeleteCustomScenario}
-                      onStartFreeTalk={() => {
+                      onStartFreeTalk={(starterScenario) => {
                         stopSpeaking();
                         setSelectedInitialRole('customer');
                         setSelectedInitialMode('freetalk');
-                        setSelectedScenario(allScenarios[0]);
+                        setSelectedScenario(starterScenario);
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
                     />

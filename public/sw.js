@@ -1,4 +1,11 @@
-const CACHE_NAME = 'tabitalk-offline-v8';
+const CACHE_NAME = 'tabitalk-offline-v9';
+const AI_RUNTIME_CACHE = 'tabitalk-ai-runtime-v1';
+const PRESERVED_CACHES = new Set([
+  CACHE_NAME,
+  AI_RUNTIME_CACHE,
+  'transformers-cache',
+]);
+
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -9,13 +16,17 @@ const CORE_ASSETS = [
   './icon-512.png',
 ];
 
+function isAiRuntimeUrl(url) {
+  return /onDeviceNmtWorker/i.test(url) || /\.wasm(\?|$)/i.test(url);
+}
+
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
       await cache.addAll(CORE_ASSETS);
 
-      // 1순위: 빌드 시 자동 생성된 offline-assets.json으로 React.lazy 분할 청크까지 100% 전수 프리캐싱
+      // 1순위: 빌드 시 자동 생성된 offline-assets.json으로 React.lazy 분할 청크까지 전수 프리캐싱 (대용량 AI 런타임 제외)
       try {
         const manifestRes = await fetch('./offline-assets.json', { cache: 'no-cache' });
         if (manifestRes.ok) {
@@ -54,7 +65,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          // 앱 UI 버전 업데이트 시에도 미리 다운로드한 온디바이스 AI 가중치(transformers-cache)와 WASM 런타임은 보존!
+          if (!PRESERVED_CACHES.has(key)) {
             return caches.delete(key);
           }
         })
@@ -67,7 +79,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // 외부 API 호출(Gemini, OpenAI, 번역 API) 및 HuggingFace 모델 가중치(자체 transformers-cache 사용)는 SW 중복 캐싱 우회
+  // 외부 API 호출 및 HuggingFace 모델 가중치(자체 transformers-cache 사용)는 SW 중복 캐싱 우회
   if (
     event.request.url.includes('generativelanguage.googleapis.com') ||
     event.request.url.includes('api.openai.com') ||
@@ -80,28 +92,43 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (
-            networkResponse &&
-            networkResponse.status === 200 &&
-            (event.request.url.startsWith(self.location.origin) ||
-              event.request.url.includes('fonts.googleapis.com') ||
-              event.request.url.includes('fonts.gstatic.com') ||
-              event.request.url.includes('cdn.jsdelivr.net'))
-          ) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
+  const targetCacheName = isAiRuntimeUrl(event.request.url)
+    ? AI_RUNTIME_CACHE
+    : CACHE_NAME;
 
-      return cachedResponse || fetchPromise;
-    })
+  event.respondWith(
+    caches.open(targetCacheName).then((targetCache) =>
+      targetCache.match(event.request).then((cachedResponse) => {
+        // 대용량 불변 해시 에셋(WASM/워커)은 캐시 히트 시 불필요한 백그라운드 재검증 생략
+        if (cachedResponse && targetCacheName === AI_RUNTIME_CACHE) {
+          return cachedResponse;
+        }
+
+        const fetchPromise = fetch(event.request)
+          .then((networkResponse) => {
+            if (
+              networkResponse &&
+              networkResponse.status === 200 &&
+              (event.request.url.startsWith(self.location.origin) ||
+                event.request.url.includes('fonts.googleapis.com') ||
+                event.request.url.includes('fonts.gstatic.com') ||
+                event.request.url.includes('cdn.jsdelivr.net'))
+            ) {
+              const responseClone = networkResponse.clone();
+              targetCache.put(event.request, responseClone);
+            }
+            return networkResponse;
+          })
+          .catch(() => {
+            if (cachedResponse) return cachedResponse;
+            if (event.request.mode === 'navigate') {
+              return caches.match('./index.html');
+            }
+            return new Response('Offline', { status: 503 });
+          });
+
+        return cachedResponse || fetchPromise;
+      })
+    )
   );
 });

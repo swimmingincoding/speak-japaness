@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Scenario, CategoryType, RoleType } from '../types/conversation';
-import { CATEGORY_META } from '../data/scenarios';
+import { SCENARIOS, CATEGORY_META } from '../data/scenarios';
 import {
   User,
   Store,
@@ -11,17 +11,17 @@ import {
 } from 'lucide-react';
 
 interface ScenarioListProps {
-  scenarios: Scenario[];
+  customScenarios: Scenario[];
   completedMap: Record<string, { customer: boolean; staff: boolean }>;
   onSelectScenario: (scenario: Scenario, role: RoleType) => void;
   onGoKeigoTab?: () => void;
   onOpenCustomModal: () => void;
   onDeleteCustomScenario?: (id: string) => void;
-  onStartFreeTalk?: () => void;
+  onStartFreeTalk?: (starterScenario: Scenario) => void;
 }
 
 export const ScenarioList: React.FC<ScenarioListProps> = ({
-  scenarios,
+  customScenarios,
   completedMap,
   onSelectScenario,
   onOpenCustomModal,
@@ -29,6 +29,7 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
   onStartFreeTalk,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'all'>('all');
+  const scenarios = useMemo(() => [...customScenarios, ...SCENARIOS], [customScenarios]);
 
   const filtered =
     selectedCategory === 'all'
@@ -48,7 +49,7 @@ export const ScenarioList: React.FC<ScenarioListProps> = ({
         {onStartFreeTalk && (
           <button
             type="button"
-            onClick={onStartFreeTalk}
+            onClick={() => onStartFreeTalk(scenarios[0])}
             className="p-4 rounded-3xl bg-indigo-600 hover:bg-indigo-500 text-white text-left space-y-2 shadow-sm active:scale-[0.98] transition cursor-pointer"
           >
             <div className="w-9 h-9 rounded-2xl bg-white/20 flex items-center justify-center">

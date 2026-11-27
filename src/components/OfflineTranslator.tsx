@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   OFFLINE_EMERGENCY_PHRASES,
   EMERGENCY_CATEGORY_META,
@@ -38,8 +38,11 @@ import {
 import { speakJapanese, startJapaneseSpeechRecognition } from '../utils/speech';
 import { FuriganaText } from './FuriganaText';
 import { RhythmicPronunciation } from './RhythmicPronunciation';
-import { TripPackModal } from './TripPackModal';
 import { hydrateInstalledTripPacks } from '../utils/tripLanguagePackStore';
+
+const TripPackModal = lazy(() =>
+  import('./TripPackModal').then((m) => ({ default: m.TripPackModal }))
+);
 import {
   WifiOff,
   ArrowRightLeft,
@@ -1325,18 +1328,22 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
         </div>
       )}
 
-      <TripPackModal
-        isOpen={isTripPackModalOpen}
-        onClose={() => setIsTripPackModalOpen(false)}
-        aiConfig={aiConfig}
-        ttsSpeed={ttsSpeed}
-        onPacksChanged={() => setPackStats(getOfflinePackStats())}
-        onSelectSentenceToTranslate={(sent) => {
-          setDirection('ko-to-jp');
-          setInputText(sent.ko);
-          handleTranslate(sent.ko);
-        }}
-      />
+      {isTripPackModalOpen && (
+        <Suspense fallback={null}>
+          <TripPackModal
+            isOpen={isTripPackModalOpen}
+            onClose={() => setIsTripPackModalOpen(false)}
+            aiConfig={aiConfig}
+            ttsSpeed={ttsSpeed}
+            onPacksChanged={() => setPackStats(getOfflinePackStats())}
+            onSelectSentenceToTranslate={(sent) => {
+              setDirection('ko-to-jp');
+              setInputText(sent.ko);
+              handleTranslate(sent.ko);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

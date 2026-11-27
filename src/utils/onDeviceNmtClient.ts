@@ -18,6 +18,7 @@ export interface OnDeviceNmtStatus {
 }
 
 const STORAGE_NMT_PREF_KEY = 'tabitalk_ondevice_nmt_pref_v1';
+const AI_RUNTIME_CACHE = 'tabitalk-ai-runtime-v1';
 const IDLE_TIMEOUT_MS = 180_000; // 3분 미사용 시 아이폰 메모리 보호를 위해 워커 슬립
 
 let workerInstance: Worker | null = null;
@@ -176,6 +177,23 @@ export async function downloadAndActivateOnDeviceModel(
     // ignore
   }
 
+  // 워커 번들 및 ONNX .wasm 런타임을 전용 영구 캐시(tabitalk-ai-runtime-v1)에 선캐싱하여 앱 업데이트 후에도 비행기 모드 작동 보장
+  if (typeof caches !== 'undefined' && typeof navigator !== 'undefined' && navigator.onLine) {
+    fetch('./offline-assets.json', { cache: 'no-cache' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(async (manifest) => {
+        if (Array.isArray(manifest?.aiRuntimeAssets) && manifest.aiRuntimeAssets.length > 0) {
+          const runtimeCache = await caches.open(AI_RUNTIME_CACHE);
+          await Promise.allSettled(
+            manifest.aiRuntimeAssets.map((url: string) => runtimeCache.add(url))
+          );
+        }
+      })
+      .catch(() => {
+        // ignore
+      });
+  }
+
   currentStatus = {
     ...currentStatus,
     enabled: true,
@@ -260,7 +278,10 @@ export async function clearOnDeviceModelCache(): Promise<void> {
   suspendOnDeviceWorker();
   try {
     if (typeof caches !== 'undefined') {
-      await caches.delete('transformers-cache');
+      await Promise.allSettled([
+        caches.delete('transformers-cache'),
+        caches.delete(AI_RUNTIME_CACHE),
+      ]);
     }
   } catch {
     // ignore
