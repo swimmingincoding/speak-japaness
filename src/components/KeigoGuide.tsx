@@ -1,15 +1,33 @@
 import React, { useState } from 'react';
 import { STAFF_KEIGO_ESSENTIALS, KeigoEssential } from '../data/scenarios';
+import { SavedExpression } from '../types/conversation';
 import { speakJapanese } from '../utils/speech';
+import { japaneseToHiraganaReading } from '../utils/japanesePhonetics';
+import { updateSRSGrade } from '../utils/srsEngine';
 import { FuriganaText } from './FuriganaText';
 import { RhythmicPronunciation } from './RhythmicPronunciation';
-import { Volume2, HelpCircle, CheckCircle2, Ear } from 'lucide-react';
+import {
+  Volume2,
+  HelpCircle,
+  CheckCircle2,
+  Ear,
+  Bookmark,
+  BookmarkCheck,
+} from 'lucide-react';
 
 interface KeigoGuideProps {
   ttsSpeed: number;
+  savedJapaneseSet?: Set<string>;
+  onToggleSave?: (expr: SavedExpression) => void;
+  onStudyActivity?: () => void;
 }
 
-export const KeigoGuide: React.FC<KeigoGuideProps> = ({ ttsSpeed }) => {
+export const KeigoGuide: React.FC<KeigoGuideProps> = ({
+  ttsSpeed,
+  savedJapaneseSet,
+  onToggleSave,
+  onStudyActivity,
+}) => {
   const [quizIndex, setQuizIndex] = useState<number | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
 
@@ -24,6 +42,23 @@ export const KeigoGuide: React.FC<KeigoGuideProps> = ({ ttsSpeed }) => {
 
   const currentQuizItem: KeigoEssential | null =
     quizIndex !== null ? STAFF_KEIGO_ESSENTIALS[quizIndex] : null;
+
+  const handleSelectQuizAnswer = (choiceId: string) => {
+    if (!currentQuizItem || selectedAnswer) return;
+    setSelectedAnswer(choiceId);
+    const isCorrect = choiceId === currentQuizItem.id;
+    updateSRSGrade(currentQuizItem.id, isCorrect ? 'good' : 'hard', {
+      title: currentQuizItem.staffKeigo,
+      japanese: currentQuizItem.exampleInStore,
+      furigana: japaneseToHiraganaReading(currentQuizItem.exampleInStore),
+      koreanPronunciation: currentQuizItem.staffKoreanPron,
+      koreanTranslation: currentQuizItem.exampleKorean,
+      category: '점원 접객어',
+    });
+    onStudyActivity?.();
+  };
+
+  const normalizeJpKey = (s: string) => s.replace(/[\s。、！？!?]/g, '').trim();
 
   return (
     <div className="space-y-3.5">
@@ -78,21 +113,27 @@ export const KeigoGuide: React.FC<KeigoGuideProps> = ({ ttsSpeed }) => {
                 others[(quizIndex! + 2) % others.length],
               ];
               options.splice(quizIndex! % 4, 0, currentQuizItem);
-              return options.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setSelectedAnswer(item.id)}
-                  className={`text-left p-3 rounded-2xl text-xs font-bold border transition cursor-pointer ${
-                    selectedAnswer === item.id
-                      ? item.id === currentQuizItem.id
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-extrabold'
-                        : 'bg-rose-50 border-rose-400 text-rose-800'
-                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  {item.exampleKorean}
-                </button>
-              ));
+              return options.map((item) => {
+                const isSelected = selectedAnswer === item.id;
+                const isRight = item.id === currentQuizItem.id;
+                let style = 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100';
+                if (selectedAnswer) {
+                  if (isRight) {
+                    style = 'bg-emerald-50 border-emerald-500 text-emerald-900 font-extrabold';
+                  } else if (isSelected) {
+                    style = 'bg-rose-50 border-rose-400 text-rose-800';
+                  }
+                }
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleSelectQuizAnswer(item.id)}
+                    className={`text-left p-3 rounded-2xl text-xs font-bold border transition cursor-pointer ${style}`}
+                  >
+                    {item.exampleKorean}
+                  </button>
+                );
+              });
             })()}
           </div>
 
@@ -118,67 +159,105 @@ export const KeigoGuide: React.FC<KeigoGuideProps> = ({ ttsSpeed }) => {
         </div>
       )}
 
-      {/* 깔끔한 접객 경어 리스트 */}
+      {/* 깔끔한 접객 경어 리스트 (보관함 북마크 지원) */}
       <div className="space-y-3">
-        {STAFF_KEIGO_ESSENTIALS.map((item, idx) => (
-          <div
-            key={item.id}
-            className="rounded-3xl bg-white border border-slate-200/80 p-4 space-y-3 shadow-2xs"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-800">
-                #{idx + 1} {item.meaning}
-              </span>
-              <span className="text-[11px] text-slate-400 line-through">
-                {item.casualOrTextbook.split(' ')[0]}
-              </span>
-            </div>
+        {STAFF_KEIGO_ESSENTIALS.map((item, idx) => {
+          const isSaved = Boolean(
+            savedJapaneseSet?.has(normalizeJpKey(item.exampleInStore))
+          );
+          return (
+            <div
+              key={item.id}
+              className="rounded-3xl bg-white border border-slate-200/80 p-4 space-y-3 shadow-2xs"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-800">
+                  #{idx + 1} {item.meaning}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-400 line-through">
+                    {item.casualOrTextbook.split(' ')[0]}
+                  </span>
+                  {onToggleSave && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onToggleSave({
+                          id: `keigo-${item.id}`,
+                          scenarioId: 'keigo_guide',
+                          scenarioTitle: '점원 단골 접객어',
+                          speaker: 'staff',
+                          japanese: item.exampleInStore,
+                          furigana: japaneseToHiraganaReading(item.exampleInStore),
+                          koreanPronunciation: item.staffKoreanPron,
+                          koreanTranslation: item.exampleKorean,
+                          realLifeTip: item.whyConfusing,
+                          savedAt: new Date().toISOString(),
+                        })
+                      }
+                      className={`p-1.5 rounded-xl transition cursor-pointer ${
+                        isSaved
+                          ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                          : 'bg-slate-100 text-slate-400 hover:text-slate-700'
+                      }`}
+                      title={isSaved ? '보관함에서 제거' : '보관함에 저장'}
+                    >
+                      {isSaved ? (
+                        <BookmarkCheck className="w-4 h-4" />
+                      ) : (
+                        <Bookmark className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
 
-            <div className="space-y-1">
-              <FuriganaText
-                text={item.staffKeigo}
-                showFurigana={true}
-                className="text-lg font-black text-slate-900"
-                rtClassName="text-[10px] font-bold text-indigo-600"
-              />
-              <RhythmicPronunciation
-                pronunciation={item.staffKoreanPron}
-                japanese={item.staffKeigo}
-                variant="compact"
-              />
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-2xl">
-              💡 {item.whyConfusing}
-            </p>
-
-            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
-              <div className="min-w-0">
+              <div className="space-y-1">
                 <FuriganaText
-                  text={item.exampleInStore}
+                  text={item.staffKeigo}
                   showFurigana={true}
-                  className="text-sm font-bold text-slate-900"
-                  rtClassName="text-[9.5px] font-bold text-indigo-600"
+                  className="text-lg font-black text-slate-900"
+                  rtClassName="text-[10px] font-bold text-indigo-600"
                 />
-                <div className="text-[11px] text-slate-500">{item.exampleKorean}</div>
+                <RhythmicPronunciation
+                  pronunciation={item.staffKoreanPron}
+                  japanese={item.staffKeigo}
+                  variant="compact"
+                />
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => speakJapanese(item.exampleInStore, 0.75)}
-                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-[11px] text-slate-700 font-bold cursor-pointer"
-                >
-                  🐢
-                </button>
-                <button
-                  onClick={() => speakJapanese(item.exampleInStore, 1.0)}
-                  className="p-2 rounded-xl bg-indigo-600 text-white cursor-pointer"
-                >
-                  <Volume2 className="w-4 h-4" />
-                </button>
+
+              <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-2xl">
+                💡 {item.whyConfusing}
+              </p>
+
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                <div className="min-w-0">
+                  <FuriganaText
+                    text={item.exampleInStore}
+                    showFurigana={true}
+                    className="text-sm font-bold text-slate-900"
+                    rtClassName="text-[9.5px] font-bold text-indigo-600"
+                  />
+                  <div className="text-[11px] text-slate-500">{item.exampleKorean}</div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => speakJapanese(item.exampleInStore, 0.75)}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-[11px] text-slate-700 font-bold cursor-pointer"
+                  >
+                    🐢
+                  </button>
+                  <button
+                    onClick={() => speakJapanese(item.exampleInStore, 1.0)}
+                    className="p-2 rounded-xl bg-indigo-600 text-white cursor-pointer"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

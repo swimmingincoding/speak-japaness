@@ -7,6 +7,7 @@ import {
   Volume2,
   Copy,
   BookmarkPlus,
+  BookmarkCheck,
   Check,
   Utensils,
   Loader2,
@@ -30,6 +31,7 @@ interface CameraMenuScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   aiConfig?: AIConfig;
+  savedJapaneseSet?: Set<string>;
   onSaveExpression?: (expr: SavedExpression) => void;
   onOpenYenCalculator?: () => void;
 }
@@ -157,6 +159,7 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
   isOpen,
   onClose,
   aiConfig,
+  savedJapaneseSet,
   onSaveExpression,
   onOpenYenCalculator,
 }) => {
@@ -173,7 +176,6 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
   // 주문 카드 크게 보기 상태
   const [focusedItem, setFocusedItem] = useState<VisionMenuItem | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [savedKey, setSavedKey] = useState<string | null>(null);
   const [addedCartKey, setAddedCartKey] = useState<string | null>(null);
   const [cartNoticeCount, setCartNoticeCount] = useState<number>(0);
 
@@ -280,15 +282,17 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
     setTimeout(() => setCopiedKey(null), 1800);
   };
 
-  // 단어장 저장
-  const handleSaveToVocab = (item: VisionMenuItem, key: string) => {
+  // 단어장 저장 (일본어 원문 기반 중복 없는 토글)
+  const normalizeJpKey = (s: string) => s.replace(/[\s。、！？!?]/g, '').trim();
+  const handleSaveToVocab = (item: VisionMenuItem) => {
     if (onSaveExpression) {
+      const jpSentence = `${item.japanese}をお願いします。`;
       onSaveExpression({
-        id: `menu_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        id: `menu_${normalizeJpKey(jpSentence)}`,
         scenarioId: 'menu_scanner',
         scenarioTitle: scanResult?.placeCategory || '메뉴판 스캔',
         speaker: 'customer',
-        japanese: `${item.japanese}をお願いします。`,
+        japanese: jpSentence,
         furigana: item.furigana
           ? `${item.furigana}をおねがいします。`
           : `${item.japanese}をおねがいします。`,
@@ -297,40 +301,36 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
         realLifeTip: item.description,
         savedAt: new Date().toISOString(),
       });
-      setSavedKey(key);
-      setTimeout(() => setSavedKey(null), 2000);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/65 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-[460px] max-h-[calc(100dvh-2rem)] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-100">
-        {/* 상단 헤더 */}
-        <div className="px-5 py-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-700 text-white flex items-center justify-between shadow-md">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-lg">
-              📷
-            </div>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+      <div className="relative w-full max-w-[480px] max-h-[94dvh] bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom,0px)]">
+        {/* 상단 핸들 바 & 깔끔한 화이트 헤더 */}
+        <div className="pt-2.5 px-5 pb-3 border-b border-slate-100 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-slate-200 mx-auto mb-2.5 sm:hidden" />
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <div className="flex items-center gap-1.5">
-                <h3 className="font-extrabold text-base leading-tight tracking-tight">
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-base text-slate-900">
                   메뉴판 · 간판 AI 스캐너
                 </h3>
-                <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-400 text-slate-950">
-                  Gemini Vision
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                  Vision
                 </span>
               </div>
-              <p className="text-[11px] text-indigo-100 font-medium">
-                손글씨/세로쓰기 한자 판독 · 발음 · 한국어 뜻
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                손글씨·세로쓰기 한자 판독 및 즉시 주문 카드
               </p>
             </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* 분리된 카메라 전용 / 사진 앨범 전용 인풋 */}
@@ -593,19 +593,30 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
                             <Copy className="w-3.5 h-3.5" />
                           )}
                         </button>
-                        {onSaveExpression && (
-                          <button
-                            onClick={() => handleSaveToVocab(item, `save_${idx}`)}
-                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer transition"
-                            title="단어장에 저장"
-                          >
-                            {savedKey === `save_${idx}` ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            ) : (
-                              <BookmarkPlus className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        )}
+                        {onSaveExpression && (() => {
+                          const isSaved = Boolean(
+                            savedJapaneseSet?.has(
+                              normalizeJpKey(`${item.japanese}をお願いします。`)
+                            )
+                          );
+                          return (
+                            <button
+                              onClick={() => handleSaveToVocab(item)}
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition ${
+                                isSaved
+                                  ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                              }`}
+                              title={isSaved ? '보관함에서 제거' : '보관함에 저장'}
+                            >
+                              {isSaved ? (
+                                <BookmarkCheck className="w-3.5 h-3.5" />
+                              ) : (
+                                <BookmarkPlus className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -686,16 +697,6 @@ export const CameraMenuScannerModal: React.FC<CameraMenuScannerModalProps> = ({
             </div>
           </div>
         )}
-
-        {/* 모달 하단 닫기 바 */}
-        <div className="p-3 pb-[calc(env(safe-area-inset-bottom,6px)+0.5rem)] bg-slate-50 border-t border-slate-100 text-center">
-          <button
-            onClick={onClose}
-            className="w-full py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
-          >
-            닫기
-          </button>
-        </div>
       </div>
     </div>
   );

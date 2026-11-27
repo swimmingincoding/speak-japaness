@@ -1,5 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { UserStreakData, getWeekStudyStatus } from '../utils/srsEngine';
+import {
+  UserStreakData,
+  getWeekStudyStatus,
+  getDueReviewItems,
+  isDailyReviewCompletedToday,
+} from '../utils/srsEngine';
+import { SavedExpression } from '../types/conversation';
 import { N3_VOCAB_LIST } from '../data/n3Vocab';
 import { N3StudyRoom } from './N3StudyRoom';
 import { KeigoGuide } from './KeigoGuide';
@@ -9,6 +15,9 @@ interface StudyHubProps {
   ttsSpeed: number;
   streakData: UserStreakData;
   masteredIds: Set<string>;
+  savedExpressions: SavedExpression[];
+  savedJapaneseSet: Set<string>;
+  onToggleSave: (expr: SavedExpression) => void;
   onToggleMastered: (id: string) => void;
   onStudyActivity: () => void;
   onOpenDailyReview: () => void;
@@ -19,6 +28,9 @@ export const StudyHub: React.FC<StudyHubProps> = ({
   ttsSpeed,
   streakData,
   masteredIds,
+  savedExpressions,
+  savedJapaneseSet,
+  onToggleSave,
   onToggleMastered,
   onStudyActivity,
   onOpenDailyReview,
@@ -26,32 +38,52 @@ export const StudyHub: React.FC<StudyHubProps> = ({
 }) => {
   const [subTab, setSubTab] = useState<'n3' | 'keigo'>(initialSubTab);
   const weekStatus = useMemo(() => getWeekStudyStatus(streakData), [streakData]);
+  const dueItems = useMemo(
+    () => getDueReviewItems(savedExpressions, N3_VOCAB_LIST, 5),
+    [savedExpressions, streakData]
+  );
+  const reviewDoneToday = isDailyReviewCompletedToday();
 
   return (
     <div className="space-y-4 pb-28">
       {/* 1. 심플 주간 스트릭 & 오늘의 3분 복습 요약 카드 */}
       <div className="rounded-3xl bg-white border border-slate-200/80 p-4 shadow-2xs space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-2xl bg-orange-50 flex items-center justify-center">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-9 h-9 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0">
               <Flame className="w-5 h-5 text-orange-500 fill-orange-500" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-sm font-black text-slate-900">
                 연속 학습 {streakData.currentStreak}일째
               </div>
-              <p className="text-[11px] text-slate-500 font-medium">
-                망각곡선 플래시카드로 하루 5문장 복습
+              <p className="text-[11px] text-slate-500 font-medium truncate">
+                {reviewDoneToday
+                  ? '오늘의 망각곡선 3분 복습 완료!'
+                  : `오늘 맞춤 복습 카드 ${dueItems.length}장 대기 중`}
               </p>
             </div>
           </div>
 
           <button
             onClick={onOpenDailyReview}
-            className="px-3.5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition cursor-pointer shrink-0"
+            className={`px-3.5 py-2.5 rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition cursor-pointer shrink-0 ${
+              reviewDoneToday
+                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
+                : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+            }`}
           >
-            <Play className="w-3 h-3 fill-current" />
-            <span>3분 복습</span>
+            {reviewDoneToday ? (
+              <>
+                <Check className="w-3.5 h-3.5 stroke-[3px]" />
+                <span>복습 완료</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3 h-3 fill-current" />
+                <span>3분 복습 ({dueItems.length})</span>
+              </>
+            )}
           </button>
         </div>
 
@@ -118,7 +150,12 @@ export const StudyHub: React.FC<StudyHubProps> = ({
           onStudyActivity={onStudyActivity}
         />
       ) : (
-        <KeigoGuide ttsSpeed={ttsSpeed} />
+        <KeigoGuide
+          ttsSpeed={ttsSpeed}
+          savedJapaneseSet={savedJapaneseSet}
+          onToggleSave={onToggleSave}
+          onStudyActivity={onStudyActivity}
+        />
       )}
     </div>
   );

@@ -12,6 +12,7 @@ import {
 import {
   loadUserStreak,
   recordStudyCompletion,
+  markDailyReviewCompletedToday,
   getDueReviewItems,
   updateSRSGrade,
   getWeekStudyStatus,
@@ -81,6 +82,7 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
       setCurrentIndex((prev) => prev + 1);
       setIsFlipped(false);
     } else {
+      markDailyReviewCompletedToday();
       const updatedStreak = recordStudyCompletion(true);
       setStreakData(updatedStreak);
       setIsSessionComplete(true);
@@ -90,74 +92,52 @@ export const DailyReviewModal: React.FC<DailyReviewModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/65 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-[450px] max-h-[calc(100dvh-2rem)] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-100">
-        {/* 상단 헤더 */}
-        <div className="px-5 py-4 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white flex items-center justify-between shadow-md">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-lg shadow-2xs">
-              🔥
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h3 className="font-extrabold text-base leading-tight tracking-tight">
-                  에빙하우스 망각곡선 일일 복습
-                </h3>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+      <div className="relative w-full max-w-[480px] max-h-[94dvh] bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom,0px)]">
+        {/* 상단 핸들 바 & 깔끔한 화이트 헤더 */}
+        <div className="pt-2.5 px-5 pb-3 border-b border-slate-100 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-slate-200 mx-auto mb-2.5 sm:hidden" />
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0">
+                <Flame className="w-5 h-5 text-orange-500 fill-orange-500" />
               </div>
-              <p className="text-[11px] text-amber-100 font-medium">
-                {streakData.currentStreak > 0
-                  ? `${streakData.currentStreak}일 연속 학습 스트릭 진행 중!`
-                  : '오늘 첫 복습을 완료하고 1일 스트릭을 켜보세요!'}
-              </p>
+              <div>
+                <h3 className="font-black text-base text-slate-900">오늘의 3분 복습</h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  연속 {streakData.currentStreak}일째 · 누적 {streakData.totalReviewsCompleted}회 완료
+                </p>
+              </div>
             </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* 스트릭 현황 대시보드 바 */}
-        <div className="px-5 py-3 bg-amber-50/70 border-b border-amber-100/70 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5 font-extrabold text-slate-800">
-              <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
-              <span>연속 학습 {streakData.currentStreak}일째</span>
-              <span className="text-[10px] text-slate-400 font-normal">
-                (최고 기록 {streakData.maxStreak}일)
-              </span>
-            </div>
-            <div className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-              누적 {streakData.totalReviewsCompleted}회 학습
-            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
-          {/* 주간 실제 출석 잔디 / 도장 인디케이터 (월~일 전체 날짜 정확 매칭) */}
-          <div className="flex items-center justify-between gap-1 pt-1">
+          {/* 주간 미니 출석 바 */}
+          <div className="grid grid-cols-7 gap-1.5 pt-3">
             {weekStatus.map((dayInfo) => (
               <div
                 key={dayInfo.dateStr}
-                className={`flex-1 py-1.5 rounded-xl text-center flex flex-col items-center gap-1 border transition ${
+                className={`py-1 rounded-xl text-center flex flex-col items-center gap-0.5 border text-[10px] font-bold ${
                   dayInfo.isToday
-                    ? 'bg-orange-500 text-white border-orange-400 shadow-2xs'
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
                     : dayInfo.isStudied
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                    : 'bg-white border-slate-200 text-slate-500'
+                    ? 'bg-emerald-50/70 border-emerald-200 text-emerald-700'
+                    : 'bg-slate-50 border-slate-100 text-slate-400'
                 }`}
-                title={`${dayInfo.dateStr} ${dayInfo.isStudied ? '(학습 완료)' : ''}`}
               >
-                <span className="text-[10px] font-extrabold">{dayInfo.dayLabel}</span>
+                <span>{dayInfo.dayLabel}</span>
                 <div
-                  className={`w-4 h-4 rounded-full flex items-center justify-center ${
+                  className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${
                     dayInfo.isStudied
-                      ? dayInfo.isToday
-                        ? 'bg-white text-orange-600'
-                        : 'bg-emerald-500 text-white'
+                      ? 'bg-emerald-500 text-white'
                       : dayInfo.isToday
-                      ? 'bg-orange-300/60'
-                      : 'bg-slate-100'
+                      ? 'bg-indigo-200/70'
+                      : 'bg-slate-200/60'
                   }`}
                 >
                   {dayInfo.isStudied && <Check className="w-2.5 h-2.5 stroke-[3px]" />}

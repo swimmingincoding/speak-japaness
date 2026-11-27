@@ -106,11 +106,27 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
   const [isTopicModalOpen, setIsTopicModalOpen] = useState<boolean>(false);
   const [customTopicInput, setCustomTopicInput] = useState<string>('');
   const [isChangingTopic, setIsChangingTopic] = useState<boolean>(false);
+  const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
 
   const recognitionRef = useRef<RecognitionHandle | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const playAllSessionRef = useRef<number>(0);
   const playAllTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const handleViewportResize = () => {
+      const offset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      setKeyboardOffset(offset > 60 ? offset : 0);
+    };
+    vv.addEventListener('resize', handleViewportResize);
+    vv.addEventListener('scroll', handleViewportResize);
+    return () => {
+      vv.removeEventListener('resize', handleViewportResize);
+      vv.removeEventListener('scroll', handleViewportResize);
+    };
+  }, []);
 
   const stopPlayAll = () => {
     playAllSessionRef.current += 1;
@@ -711,8 +727,13 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
                           : 'bg-white border-slate-200/90 rounded-tl-sm'
                       }`}
                     >
-                      {/* 일본어 원문 + Furigana */}
-                      <div className="space-y-1.5">
+                      {/* 일본어 원문 + Furigana (말풍선 본문을 가볍게 탭해도 해설·단어가 펼쳐짐) */}
+                      <div
+                        onClick={() =>
+                          setExpandedTurnId(isExpanded ? null : turn.id)
+                        }
+                        className="space-y-1.5 cursor-pointer"
+                      >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1">
                             <FuriganaText
@@ -1250,9 +1271,16 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
         </div>
       )}
 
-      {/* FreeTalk Mode 전용 하단 고정 입력창 */}
+      {/* FreeTalk Mode 전용 하단 고정 입력창 (아이폰 소프트 키보드 높이 실시간 대응) */}
       {mode === 'freetalk' && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-4 pt-2.5 pb-[calc(env(safe-area-inset-bottom,16px)+0.6rem)] shadow-[0_-8px_30px_rgba(0,0,0,0.06)]">
+        <div
+          style={keyboardOffset > 0 ? { bottom: `${keyboardOffset}px` } : undefined}
+          className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-4 pt-2.5 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] transition-[bottom] duration-150 ${
+            keyboardOffset > 0
+              ? 'pb-2.5'
+              : 'pb-[calc(env(safe-area-inset-bottom,16px)+0.6rem)]'
+          }`}
+        >
           <div className="w-full space-y-2">
             {/* 추천 답변 칩 */}
             {lastFreePartnerMsg?.suggestedReplies &&
@@ -1292,6 +1320,11 @@ export const RolePlayRoom: React.FC<RolePlayRoomProps> = ({
               <textarea
                 value={freeInput}
                 onChange={(e) => setFreeInput(e.target.value)}
+                onFocus={() => {
+                  setTimeout(() => {
+                    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                  }, 220);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     if (e.nativeEvent.isComposing) return;

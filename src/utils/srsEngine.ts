@@ -34,7 +34,26 @@ export interface WeekDayStatus {
 const STORAGE_KEYS = {
   STREAK: 'tabitalk_user_streak_v1',
   SRS_ITEMS: 'tabitalk_srs_records_v1',
+  DAILY_REVIEW_DONE: 'tabitalk_last_daily_review_v1',
 };
+
+export function markDailyReviewCompletedToday(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.DAILY_REVIEW_DONE, getTodayDateStr());
+  } catch {
+    // ignore
+  }
+}
+
+export function isDailyReviewCompletedToday(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    return localStorage.getItem(STORAGE_KEYS.DAILY_REVIEW_DONE) === getTodayDateStr();
+  } catch {
+    return false;
+  }
+}
 
 // 망각곡선 레벨별 복습 주기 (일수)
 const SRS_INTERVALS_DAYS = [1, 3, 7, 14, 30, 60];

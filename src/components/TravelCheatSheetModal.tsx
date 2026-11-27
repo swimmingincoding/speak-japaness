@@ -468,34 +468,32 @@ export const TravelCheatSheetModal: React.FC<TravelCheatSheetModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/65 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-[460px] max-h-[calc(100dvh-2rem)] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-100">
-        {/* 상단 헤더 */}
-        <div className="px-5 py-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-700 text-white flex items-center justify-between shadow-md">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-lg">
-              📄
-            </div>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+      <div className="relative w-full max-w-[480px] max-h-[94dvh] bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl flex flex-col overflow-hidden">
+        {/* 상단 핸들 바 & 깔끔한 화이트 헤더 */}
+        <div className="pt-2.5 px-5 pb-3 border-b border-slate-100 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-slate-200 mx-auto mb-2.5 sm:hidden" />
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <div className="flex items-center gap-1.5">
-                <h3 className="font-extrabold text-base leading-tight tracking-tight">
-                  여행 치트시트 배경화면 만들기
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-base text-slate-900">
+                  잠금화면 치트시트 만들기
                 </h3>
-                <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-400 text-slate-950">
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
                   iPhone 16 Pro
                 </span>
               </div>
-              <p className="text-[11px] text-indigo-100 font-medium">
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
                 잠금화면 시계·하단 버튼 겹침 없는 전용 레이아웃
               </p>
             </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* 숨김 고해상도 캔버스 */}

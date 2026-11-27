@@ -108,27 +108,30 @@ export const TripPackModal: React.FC<TripPackModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
-      <div className="w-full sm:max-w-lg h-[100dvh] sm:h-auto sm:max-h-[88vh] bg-white sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom,0px)]">
-        {/* 상단 헤더 (아이폰 16 프로 다이내믹 아일랜드 뒤쪽 배경까지 그라데이션 일체화) */}
-        <div className="px-5 pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-4 pb-4 bg-gradient-to-r from-indigo-950 via-indigo-900 to-slate-900 text-white flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-indigo-500/25 border border-indigo-400/30 flex items-center justify-center">
-              <Briefcase className="w-4 h-4 text-amber-300" />
+    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
+      <div className="w-full max-w-[480px] max-h-[94dvh] bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom,0px)]">
+        {/* 상단 핸들 바 & 깔끔한 화이트 헤더 */}
+        <div className="pt-2.5 px-5 pb-3 border-b border-slate-100 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-slate-200 mx-auto mb-2.5 sm:hidden" />
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
+                <Briefcase className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-black text-slate-900">맞춤 여행 언어팩</h2>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  오프라인 영구 보관 · 설치된 문장 {totalInstalledSentences}개
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-sm font-black">🎒 출국 전 맞춤 여행 언어팩</h2>
-              <p className="text-[11px] text-indigo-200">
-                IndexedDB 영구 보관 · 설치된 맞춤 문장 {totalInstalledSentences}개
-              </p>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* 탭 바 */}

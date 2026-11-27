@@ -200,8 +200,10 @@ export const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEYS.LAST_TAB, activeTab);
   }, [activeTab]);
 
+  const normalizeJpKey = (s: string) => s.replace(/[\s。、！？!?]/g, '').trim();
   const allScenarios = [...customScenarios, ...SCENARIOS];
   const savedIds = new Set(savedExpressions.map((s) => s.id));
+  const savedJapaneseSet = new Set(savedExpressions.map((s) => normalizeJpKey(s.japanese)));
   const n3MasteredSet = new Set(n3MasteredList);
 
   const handleCreateCustomScenario = (newScenario: Scenario) => {
@@ -215,10 +217,15 @@ export const App: React.FC = () => {
   };
 
   const handleToggleSave = (expr: SavedExpression) => {
+    const targetJpKey = normalizeJpKey(expr.japanese);
     setSavedExpressions((prev) => {
-      const exists = prev.some((item) => item.id === expr.id);
+      const exists = prev.some(
+        (item) => item.id === expr.id || (targetJpKey && normalizeJpKey(item.japanese) === targetJpKey)
+      );
       if (exists) {
-        return prev.filter((item) => item.id !== expr.id);
+        return prev.filter(
+          (item) => item.id !== expr.id && (!targetJpKey || normalizeJpKey(item.japanese) !== targetJpKey)
+        );
       }
       return [expr, ...prev];
     });
@@ -351,6 +358,7 @@ export const App: React.FC = () => {
                       ttsSpeed={displaySettings.ttsSpeed}
                       showFurigana={displaySettings.showFurigana}
                       aiConfig={aiConfig}
+                      savedJapaneseSet={savedJapaneseSet}
                       onOpenSettings={() => setIsSettingsOpen(true)}
                       onSaveExpression={handleToggleSave}
                       onOpenYenCalculator={() => setIsYenCalculatorOpen(true)}
@@ -389,6 +397,9 @@ export const App: React.FC = () => {
                       ttsSpeed={displaySettings.ttsSpeed}
                       streakData={streakData}
                       masteredIds={n3MasteredSet}
+                      savedExpressions={savedExpressions}
+                      savedJapaneseSet={savedJapaneseSet}
+                      onToggleSave={handleToggleSave}
                       onToggleMastered={handleToggleN3Mastered}
                       onStudyActivity={() => setStreakData(recordStudyCompletion(false))}
                       onOpenDailyReview={() => setIsDailyReviewOpen(true)}
@@ -493,6 +504,7 @@ export const App: React.FC = () => {
             isOpen={isCameraScannerOpen}
             onClose={() => setIsCameraScannerOpen(false)}
             aiConfig={aiConfig}
+            savedJapaneseSet={savedJapaneseSet}
             onSaveExpression={handleToggleSave}
             onOpenYenCalculator={() => {
               setIsCameraScannerOpen(false);

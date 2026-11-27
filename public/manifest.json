@@ -4,8 +4,8 @@
   "description": "손님과 종업원 역할을 바꿔가며 배우는 실전 일본 여행 회화 · 오프라인 번역 · JLPT N3 한자 모바일 앱",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#EEF2F6",
-  "theme_color": "#4f46e5",
+  "background_color": "#F5F7FA",
+  "theme_color": "#F5F7FA",
   "orientation": "portrait",
   "icons": [
     {

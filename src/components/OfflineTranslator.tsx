@@ -51,6 +51,7 @@ import {
   Sparkles,
   CornerDownLeft,
   BookmarkPlus,
+  BookmarkCheck,
   Check,
   Cpu,
   Copy,
@@ -61,6 +62,7 @@ import {
   Camera,
   Calculator,
   ChevronRight,
+  Ear,
 } from 'lucide-react';
 import { AIConfig, SavedExpression } from '../types/conversation';
 
@@ -68,6 +70,7 @@ interface OfflineTranslatorProps {
   ttsSpeed: number;
   showFurigana?: boolean;
   aiConfig?: AIConfig;
+  savedJapaneseSet?: Set<string>;
   onOpenSettings?: () => void;
   onSaveExpression?: (expr: SavedExpression) => void;
   onOpenYenCalculator?: () => void;
@@ -78,6 +81,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   ttsSpeed,
   showFurigana = true,
   aiConfig,
+  savedJapaneseSet,
   onOpenSettings,
   onSaveExpression,
   onOpenYenCalculator,
@@ -102,7 +106,6 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
   >('all');
   const [expandedSosId, setExpandedSosId] = useState<string | null>(null);
 
-  const [justSaved, setJustSaved] = useState<boolean>(false);
   const [copiedOutput, setCopiedOutput] = useState<boolean>(false);
   const [nmtStatus, setNmtStatus] = useState<OnDeviceNmtStatus>(() =>
     getOnDeviceNmtStatus()
@@ -181,15 +184,19 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     }
   }, [inputText, direction, forceOfflineMode]);
 
-  const handleTranslate = async (textOverride?: string) => {
+  const handleTranslate = async (
+    textOverride?: string,
+    dirOverride?: 'ko-to-jp' | 'jp-to-ko'
+  ) => {
     const text = (textOverride ?? inputText).trim();
+    const activeDir = dirOverride ?? direction;
     if (!text) return;
 
     const currentReqId = ++activeReqIdRef.current;
 
-    const offlineOut = executeOfflineTranslation(text, direction);
+    const offlineOut = executeOfflineTranslation(text, activeDir);
     setTranslationResult(offlineOut);
-    pushRecentHistory(text, direction, offlineOut);
+    pushRecentHistory(text, activeDir, offlineOut);
 
     if (
       offlineOut.engineType === 'offline-neural-cache' ||
@@ -204,23 +211,23 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
       if (!nmtStatus.enabled || offlineOut.confidence >= 97) return false;
       setIsTranslating(true);
       try {
-        const nmtTranslated = await translateWithOnDeviceNmt(text, direction);
+        const nmtTranslated = await translateWithOnDeviceNmt(text, activeDir);
         if (currentReqId !== activeReqIdRef.current) return true;
         if (nmtTranslated && nmtTranslated.trim()) {
-          const finalJp = direction === 'ko-to-jp' ? nmtTranslated.trim() : text;
+          const finalJp = activeDir === 'ko-to-jp' ? nmtTranslated.trim() : text;
           const finalFuri = japaneseToHiraganaReading(finalJp);
           const finalKorPron = kanaToKoreanPronunciation(finalJp);
           const nmtOut: TranslationOutput = {
             japanese: finalJp,
             furigana: finalFuri,
             koreanPronunciation: finalKorPron,
-            koreanMeaning: direction === 'ko-to-jp' ? text : nmtTranslated.trim(),
+            koreanMeaning: activeDir === 'ko-to-jp' ? text : nmtTranslated.trim(),
             engineType: 'on-device-nmt',
             confidence: 98,
           };
           setTranslationResult(nmtOut);
-          pushRecentHistory(text, direction, nmtOut);
-          saveNeuralCache(text, direction, nmtOut);
+          pushRecentHistory(text, activeDir, nmtOut);
+          saveNeuralCache(text, activeDir, nmtOut);
           setPackStats(getOfflinePackStats());
           return true;
         }
@@ -242,7 +249,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     if (!effectiveOffline && hasAiKey && aiConfig) {
       setIsTranslating(true);
       try {
-        const aiRes = await translateWithAI(text, direction, aiConfig);
+        const aiRes = await translateWithAI(text, activeDir, aiConfig);
         if (currentReqId !== activeReqIdRef.current) return;
 
         if (aiRes && aiRes.japanese) {
@@ -269,15 +276,15 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
             furigana: finalFuri,
             koreanPronunciation: finalKorPron,
             koreanMeaning:
-              direction === 'ko-to-jp' ? text : aiRes.koreanMeaning || text,
+              activeDir === 'ko-to-jp' ? text : aiRes.koreanMeaning || text,
             engineType: aiRes.providerUsed,
             confidence: 100,
             tip: aiRes.tip,
           };
 
           setTranslationResult(aiOut);
-          pushRecentHistory(text, direction, aiOut);
-          saveNeuralCache(text, direction, aiOut);
+          pushRecentHistory(text, activeDir, aiOut);
+          saveNeuralCache(text, activeDir, aiOut);
           setPackStats(getOfflinePackStats());
           setIsTranslating(false);
           return;
@@ -290,8 +297,8 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     if (!effectiveOffline && offlineOut.confidence < 99) {
       setIsTranslating(true);
       try {
-        const sl = direction === 'ko-to-jp' ? 'ko' : 'ja';
-        const tl = direction === 'ko-to-jp' ? 'ja' : 'ko';
+        const sl = activeDir === 'ko-to-jp' ? 'ko' : 'ja';
+        const tl = activeDir === 'ko-to-jp' ? 'ja' : 'ko';
         const q = encodeURIComponent(text);
 
         let translatedText = '';
@@ -361,7 +368,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
         }
 
         if (translatedText) {
-          const finalJapanese = direction === 'ko-to-jp' ? translatedText : text;
+          const finalJapanese = activeDir === 'ko-to-jp' ? translatedText : text;
 
           if (romajiSegments) {
             registerDynamicKanjiReadings(finalJapanese, romajiSegments);
@@ -386,14 +393,14 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
             japanese: finalJapanese,
             furigana: matchedFurigana,
             koreanPronunciation: matchedKoreanPron,
-            koreanMeaning: direction === 'ko-to-jp' ? text : translatedText,
+            koreanMeaning: activeDir === 'ko-to-jp' ? text : translatedText,
             engineType: 'online-live',
             confidence: 100,
           };
 
           setTranslationResult(liveOut);
-          pushRecentHistory(text, direction, liveOut);
-          saveNeuralCache(text, direction, liveOut);
+          pushRecentHistory(text, activeDir, liveOut);
+          saveNeuralCache(text, activeDir, liveOut);
           setPackStats(getOfflinePackStats());
           return;
         }
@@ -409,23 +416,24 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     }
   };
 
-  const handleVoiceInput = () => {
-    if (isListening) {
-      voiceRecRef.current?.stop();
-      voiceRecRef.current = null;
-      setIsListening(false);
-      return;
-    }
-
+  const startVoiceForDirection = (targetDir: 'ko-to-jp' | 'jp-to-ko') => {
+    voiceRecRef.current?.stop();
+    voiceRecRef.current = null;
     stopSpeakingSafe();
 
-    if (direction === 'jp-to-ko') {
+    if (targetDir !== direction) {
+      setDirection(targetDir);
+      setInputText('');
+      setTranslationResult(null);
+    }
+
+    if (targetDir === 'jp-to-ko') {
       setIsListening(true);
       const handle = startJapaneseSpeechRecognition(
         (transcript, isFinal) => {
           setInputText(transcript);
           if (isFinal) {
-            handleTranslate(transcript);
+            handleTranslate(transcript, 'jp-to-ko');
           }
         },
         () => {
@@ -452,7 +460,7 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rec = new (SpeechRecognitionClass as any)();
     rec.lang = 'ko-KR';
-    rec.interimResults = false;
+    rec.interimResults = true;
     setIsListening(true);
     voiceRecRef.current = {
       stop: () => {
@@ -465,10 +473,19 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onresult = (e: any) => {
-      const spoken = e.results?.[0]?.[0]?.transcript || '';
-      if (spoken) {
-        setInputText(spoken);
-        handleTranslate(spoken);
+      let transcript = '';
+      let isFinal = false;
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        transcript += e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          isFinal = true;
+        }
+      }
+      if (transcript) {
+        setInputText(transcript);
+        if (isFinal) {
+          handleTranslate(transcript, 'ko-to-jp');
+        }
       }
     };
     rec.onerror = () => {
@@ -485,6 +502,16 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
       voiceRecRef.current = null;
       setIsListening(false);
     }
+  };
+
+  const handleVoiceInput = () => {
+    if (isListening) {
+      voiceRecRef.current?.stop();
+      voiceRecRef.current = null;
+      setIsListening(false);
+      return;
+    }
+    startVoiceForDirection(direction);
   };
 
   function stopSpeakingSafe() {
@@ -673,38 +700,40 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
                   )}
                 </button>
 
-                {onSaveExpression && (
-                  <button
-                    onClick={() => {
-                      onSaveExpression({
-                        id: `trans-${Date.now()}`,
-                        scenarioId: 'translator',
-                        scenarioTitle: '번역 북마크',
-                        speaker: 'customer',
-                        japanese: translationResult.japanese,
-                        furigana: translationResult.furigana,
-                        koreanPronunciation: translationResult.koreanPronunciation,
-                        koreanTranslation: translationResult.koreanMeaning,
-                        realLifeTip: translationResult.tip || '번역기에서 저장한 표현입니다.',
-                        savedAt: new Date().toISOString(),
-                      });
-                      setJustSaved(true);
-                      setTimeout(() => setJustSaved(false), 1800);
-                    }}
-                    className={`p-2 rounded-xl transition cursor-pointer ${
-                      justSaved
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/80'
-                    }`}
-                    title="보관함에 저장"
-                  >
-                    {justSaved ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <BookmarkPlus className="w-4 h-4" />
-                    )}
-                  </button>
-                )}
+                {onSaveExpression && (() => {
+                  const jpKey = translationResult.japanese.replace(/[\s。、！？!?]/g, '').trim();
+                  const isSaved = Boolean(jpKey && savedJapaneseSet?.has(jpKey));
+                  return (
+                    <button
+                      onClick={() => {
+                        onSaveExpression({
+                          id: `trans-${jpKey}`,
+                          scenarioId: 'translator',
+                          scenarioTitle: '번역 북마크',
+                          speaker: direction === 'jp-to-ko' ? 'staff' : 'customer',
+                          japanese: translationResult.japanese,
+                          furigana: translationResult.furigana,
+                          koreanPronunciation: translationResult.koreanPronunciation,
+                          koreanTranslation: translationResult.koreanMeaning,
+                          realLifeTip: translationResult.tip || '번역기에서 저장한 표현입니다.',
+                          savedAt: new Date().toISOString(),
+                        });
+                      }}
+                      className={`p-2 rounded-xl transition cursor-pointer ${
+                        isSaved
+                          ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                          : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                      }`}
+                      title={isSaved ? '보관함에서 제거' : '보관함에 저장'}
+                    >
+                      {isSaved ? (
+                        <BookmarkCheck className="w-4 h-4" />
+                      ) : (
+                        <BookmarkPlus className="w-4 h-4" />
+                      )}
+                    </button>
+                  );
+                })()}
               </div>
             </div>
 
@@ -731,28 +760,45 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
               )}
             </div>
 
-            {/* 핵심 현장 액션 2개만 큼직하게 배치 */}
-            <div className="grid grid-cols-2 gap-2 pt-0.5">
+            {/* 핵심 현장 액션 + 대면 티키타카 원터치 통역 */}
+            <div className="space-y-2 pt-0.5">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => speakJapanese(translationResult.japanese, ttsSpeed)}
+                  className="py-3 px-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-[0.98] transition cursor-pointer"
+                >
+                  <Volume2 className="w-4 h-4" />
+                  <span>발음 듣기</span>
+                </button>
+                <button
+                  onClick={() =>
+                    setBigScreenPhrase({
+                      japanese: translationResult.japanese,
+                      furigana: translationResult.furigana,
+                      koreanPronunciation: translationResult.koreanPronunciation,
+                      korean: translationResult.koreanMeaning,
+                    })
+                  }
+                  className="py-3 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-[0.98] transition cursor-pointer"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span>크게 보여주기</span>
+                </button>
+              </div>
+
               <button
-                onClick={() => speakJapanese(translationResult.japanese, ttsSpeed)}
-                className="py-3 px-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-[0.98] transition cursor-pointer"
-              >
-                <Volume2 className="w-4 h-4" />
-                <span>발음 듣기</span>
-              </button>
-              <button
+                type="button"
                 onClick={() =>
-                  setBigScreenPhrase({
-                    japanese: translationResult.japanese,
-                    furigana: translationResult.furigana,
-                    koreanPronunciation: translationResult.koreanPronunciation,
-                    korean: translationResult.koreanMeaning,
-                  })
+                  startVoiceForDirection(direction === 'ko-to-jp' ? 'jp-to-ko' : 'ko-to-jp')
                 }
-                className="py-3 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-[0.98] transition cursor-pointer"
+                className="w-full py-2.5 px-3 rounded-2xl bg-white hover:bg-indigo-50 border border-indigo-200/90 text-indigo-700 font-extrabold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.99] cursor-pointer"
               >
-                <Maximize2 className="w-3.5 h-3.5" />
-                <span>크게 보여주기</span>
+                <Ear className="w-3.5 h-3.5" />
+                <span>
+                  {direction === 'ko-to-jp'
+                    ? '점원의 일본어 대답 바로 듣기 (자동 통역)'
+                    : '한국어로 바로 대답하기'}
+                </span>
               </button>
             </div>
           </div>
@@ -1251,19 +1297,30 @@ export const OfflineTranslator: React.FC<OfflineTranslatorProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2.5">
             <button
-              onClick={() => speakJapanese(bigScreenPhrase.japanese, 0.95)}
-              className="py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl cursor-pointer"
+              onClick={() => {
+                setBigScreenPhrase(null);
+                startVoiceForDirection('jp-to-ko');
+              }}
+              className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer"
             >
-              <Volume2 className="w-5 h-5" /> 음성 크게 재생
+              <Ear className="w-4 h-4" /> 상대방 일본어 대답 바로 통역하기
             </button>
-            <button
-              onClick={() => setBigScreenPhrase(null)}
-              className="py-4 rounded-2xl bg-slate-800 text-slate-200 font-bold text-sm cursor-pointer"
-            >
-              닫기
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => speakJapanese(bigScreenPhrase.japanese, 0.95)}
+                className="py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl cursor-pointer"
+              >
+                <Volume2 className="w-5 h-5" /> 음성 크게 재생
+              </button>
+              <button
+                onClick={() => setBigScreenPhrase(null)}
+                className="py-3.5 rounded-2xl bg-slate-800 text-slate-200 font-bold text-sm cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
           </div>
         </div>
       )}
